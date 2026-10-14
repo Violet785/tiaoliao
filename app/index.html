@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      /*
+       * viewport-fit=cover 是刘海屏安全区（env(safe-area-inset-*)）生效的前提，
+       * 「照着配」那个全屏页面的底部按钮全靠它才不会被 iPhone 的横条压住。
+       * 老浏览器不认 env()，先探测再决定加不加，免得白白降级。
+       */
+      var coverSupport = 'CSS' in window && typeof CSS.supports === 'function' && (CSS.supports('top: env(a)') ||
+        CSS.supports('top: constant(a)'))
+      document.write(
+        '<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0' +
+        (coverSupport ? ', viewport-fit=cover' : '') + '" />')
+    </script>
+
+    <title>蘸料 · 自助餐蘸料配方</title>
+    <meta name="description" content="找到你要去的那家自助餐厅，看别人试过的蘸料配方，照着配出来。" />
+
+    <!-- 安装到手机主屏 -->
+    <link rel="manifest" href="/static/manifest.webmanifest" />
+    <meta name="theme-color" content="#C8452E" />
+    <link rel="icon" href="/static/icons/icon-192.png" />
+
+    <!-- iOS 不认 manifest 里的图标和显示模式，得单独声明 -->
+    <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="蘸料" />
+
+    <!-- 分享到微信/QQ 时的卡片。缩略图等有图床了再补 og:image -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="蘸料 · 自助餐蘸料配方" />
+    <meta property="og:description" content="看别人为这家店试过的配方，照着配出来。" />
+
+    <!--preload-links-->
+    <!--app-context-->
+  </head>
+  <body>
+    <div id="app"><!--app-html--></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

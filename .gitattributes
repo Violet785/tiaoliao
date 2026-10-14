@@ -1,0 +1,16 @@
+# 统一换行符。
+#
+# 不设这个的话：Windows 提交的是 CRLF，Mac/Linux 检出后是 LF，
+# 对方刚 clone 下来 git status 就显示「所有文件都被改过」——
+# 几百行的 diff 里找不到真正改动的那一行。团队里只要有一台 Mac 就会中招。
+* text=auto eol=lf
+
+# 二进制文件不要碰
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary

@@ -1,0 +1,46 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "蘸料",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
+      "path": "pages/restaurant/list",
+      "style": {
+        "navigationBarTitleText": "找店"
+      }
+    },
+    {
+      "path": "pages/restaurant/create",
+      "style": {
+        "navigationBarTitleText": "建一家店"
+      }
+    },
+    {
+      "path": "pages/restaurant/detail",
+      "style": {
+        "navigationBarTitleText": "店铺",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
+      "path": "pages/common/login",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "蘸料",
+    "navigationBarBackgroundColor": "#F6F3EE",
+    "backgroundColor": "#F6F3EE"
+  }
+}

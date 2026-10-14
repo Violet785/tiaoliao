@@ -1,0 +1,24 @@
+{
+  "name": "sauce-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "蘸料小程序后端 —— Express + node:sqlite",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning --watch src/index.js",
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/index.js",
+    "migrate": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/db/migrate.js",
+    "seed": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/seed/run.js",
+    "seed:demo": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/seed/demo.js",
+    "reset": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/reset.js",
+    "db:info": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/db-info.js",
+    "smoke": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/smoke.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
+  }
+}
