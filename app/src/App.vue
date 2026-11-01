@@ -29,6 +29,7 @@ onLaunch(() => {
 </script>
 
 <style>
+@import './styles/community.css';
 /*
  * 全局设计变量。
  *
@@ -54,7 +55,7 @@ page {
 
   background-color: var(--c-bg);
   color: var(--c-text);
-  font-size: 28rpx;
+  font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }

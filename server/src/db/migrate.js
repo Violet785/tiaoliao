@@ -10,12 +10,15 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { getDb } from './index.js'
 import { withTx } from './tx.js'
+import { brandName, brandKey } from '../utils/brand.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations')
 
 export function runMigrations({ silent = false } = {}) {
   const db = getDb()
+  db.function('brand_name', { deterministic: true }, brandName)
+  db.function('brand_key', { deterministic: true }, brandKey)
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (

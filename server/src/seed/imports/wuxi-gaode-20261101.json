@@ -1,0 +1,514 @@
+{
+  "sourceFile": "gaode_food.xlsx",
+  "sourceSha256": "dd307cf676902b019af8fd495bb43a1ac9a23ae56dded15205477ed0aab35d51",
+  "sheet": "店铺",
+  "sourceRecordCount": 435,
+  "criteria": "以表内多分店记录为覆盖线索；同一分店重复记录合并后，至少两个有分店标识的店名且评分中位数不低于 4.3。剔除原表暂停营业、无锡市域外记录、通用菜系店名及与蘸料关系弱的业态。此为表内初筛，不代表实际客流或当前营业状态核验。",
+  "brands": [
+    {
+      "name": "牛NEW",
+      "category": "火锅",
+      "sourceRows": [
+        55,
+        56
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.7,
+      "recordCount": 2
+    },
+    {
+      "name": "龍歌",
+      "category": "火锅",
+      "sourceRows": [
+        64,
+        126,
+        134,
+        135,
+        136,
+        137,
+        179,
+        247
+      ],
+      "distinctBranchLabels": 8,
+      "medianRating": 4.5,
+      "recordCount": 8
+    },
+    {
+      "name": "芝小官",
+      "category": "自助餐",
+      "sourceRows": [
+        97,
+        98,
+        160,
+        161,
+        164,
+        166,
+        195
+      ],
+      "distinctBranchLabels": 7,
+      "medianRating": 4.5,
+      "recordCount": 7
+    },
+    {
+      "name": "钱山岭",
+      "category": "火锅",
+      "aliases": [
+        "钱山岭云贵自助小火锅"
+      ],
+      "sourceRows": [
+        68,
+        128,
+        176,
+        345
+      ],
+      "distinctBranchLabels": 3,
+      "medianRating": 4.4,
+      "recordCount": 4
+    },
+    {
+      "name": "十尾鲜",
+      "category": "火锅",
+      "sourceRows": [
+        123,
+        170,
+        172,
+        201
+      ],
+      "distinctBranchLabels": 4,
+      "medianRating": 4.4,
+      "recordCount": 4
+    },
+    {
+      "name": "海底捞",
+      "category": "火锅",
+      "sourceRows": [
+        4,
+        5,
+        40,
+        41,
+        42,
+        43,
+        44,
+        46,
+        100,
+        101,
+        102,
+        103,
+        215
+      ],
+      "distinctBranchLabels": 13,
+      "medianRating": 4.7,
+      "recordCount": 13
+    },
+    {
+      "name": "巴奴",
+      "category": "火锅",
+      "sourceRows": [
+        8,
+        9,
+        10,
+        112,
+        113,
+        114
+      ],
+      "distinctBranchLabels": 6,
+      "medianRating": 4.7,
+      "recordCount": 6
+    },
+    {
+      "name": "大渝火锅",
+      "category": "火锅",
+      "sourceRows": [
+        96,
+        99,
+        168
+      ],
+      "distinctBranchLabels": 3,
+      "medianRating": 4.6,
+      "recordCount": 3
+    },
+    {
+      "name": "七欣天",
+      "category": "火锅",
+      "sourceRows": [
+        50,
+        105,
+        106,
+        107,
+        111,
+        196,
+        301,
+        411,
+        418
+      ],
+      "distinctBranchLabels": 9,
+      "medianRating": 4.6,
+      "recordCount": 9
+    },
+    {
+      "name": "二当家",
+      "category": "火锅",
+      "sourceRows": [
+        14,
+        65,
+        76,
+        152,
+        162,
+        171,
+        174,
+        185,
+        187,
+        188,
+        209,
+        238,
+        239,
+        251
+      ],
+      "distinctBranchLabels": 13,
+      "medianRating": 4.4,
+      "recordCount": 14
+    },
+    {
+      "name": "杨铁花",
+      "category": "火锅",
+      "sourceRows": [
+        15,
+        17,
+        19,
+        20,
+        25
+      ],
+      "distinctBranchLabels": 5,
+      "medianRating": 4.7,
+      "recordCount": 5
+    },
+    {
+      "name": "牛品福",
+      "category": "火锅",
+      "sourceRows": [
+        30,
+        33,
+        34,
+        36
+      ],
+      "distinctBranchLabels": 4,
+      "medianRating": 4.7,
+      "recordCount": 4
+    },
+    {
+      "name": "重庆枇杷园巴适老火锅",
+      "category": "火锅",
+      "sourceRows": [
+        28,
+        29,
+        31,
+        86
+      ],
+      "distinctBranchLabels": 4,
+      "medianRating": 4.7,
+      "recordCount": 4
+    },
+    {
+      "name": "东海怡品",
+      "category": "火锅",
+      "sourceRows": [
+        11,
+        54,
+        282,
+        283,
+        284,
+        285
+      ],
+      "distinctBranchLabels": 6,
+      "medianRating": 4.8,
+      "recordCount": 6
+    },
+    {
+      "name": "鑫发牧歌",
+      "category": "火锅",
+      "sourceRows": [
+        32,
+        87,
+        159
+      ],
+      "distinctBranchLabels": 3,
+      "medianRating": 4.6,
+      "recordCount": 3
+    },
+    {
+      "name": "伙夫",
+      "category": "火锅",
+      "sourceRows": [
+        7,
+        45,
+        398
+      ],
+      "distinctBranchLabels": 3,
+      "medianRating": 4.7,
+      "recordCount": 3
+    },
+    {
+      "name": "一绪寿喜烧",
+      "category": "火锅",
+      "sourceRows": [
+        108,
+        116
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.6,
+      "recordCount": 2
+    },
+    {
+      "name": "德天雪花肥牛",
+      "category": "火锅",
+      "sourceRows": [
+        23,
+        47
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.7,
+      "recordCount": 2
+    },
+    {
+      "name": "山中无老虎",
+      "category": "火锅",
+      "sourceRows": [
+        18,
+        70
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.65,
+      "recordCount": 2
+    },
+    {
+      "name": "锅境",
+      "category": "火锅",
+      "sourceRows": [
+        57,
+        117
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.65,
+      "recordCount": 2
+    },
+    {
+      "name": "陆掌贵",
+      "category": "火锅",
+      "sourceRows": [
+        80,
+        148
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.55,
+      "recordCount": 2
+    },
+    {
+      "name": "柒爷自助",
+      "category": "火锅",
+      "sourceRows": [
+        78,
+        84,
+        89,
+        147
+      ],
+      "distinctBranchLabels": 3,
+      "medianRating": 4.6,
+      "recordCount": 4
+    },
+    {
+      "name": "韩右右",
+      "category": "自助餐",
+      "sourceRows": [
+        90,
+        193,
+        249,
+        337
+      ],
+      "distinctBranchLabels": 4,
+      "medianRating": 4.45,
+      "recordCount": 4
+    },
+    {
+      "name": "京馆主",
+      "category": "火锅",
+      "sourceRows": [
+        167,
+        197
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.45,
+      "recordCount": 2
+    },
+    {
+      "name": "春花涮串串",
+      "category": "火锅",
+      "sourceRows": [
+        130,
+        139,
+        173,
+        175,
+        183,
+        186
+      ],
+      "distinctBranchLabels": 6,
+      "medianRating": 4.4,
+      "recordCount": 6
+    },
+    {
+      "name": "渝冠霖",
+      "category": "火锅",
+      "sourceRows": [
+        63,
+        127
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.55,
+      "recordCount": 2
+    },
+    {
+      "name": "欢乐牧场",
+      "category": "自助餐",
+      "sourceRows": [
+        154,
+        405,
+        407
+      ],
+      "distinctBranchLabels": 3,
+      "medianRating": 4.5,
+      "recordCount": 3
+    },
+    {
+      "name": "牛得钢",
+      "category": "烤肉",
+      "sourceRows": [
+        315,
+        317,
+        318,
+        347,
+        375,
+        391
+      ],
+      "distinctBranchLabels": 4,
+      "medianRating": 4.45,
+      "recordCount": 6
+    },
+    {
+      "name": "流浪泡泡",
+      "category": "烤肉",
+      "sourceRows": [
+        321,
+        327,
+        352,
+        385
+      ],
+      "distinctBranchLabels": 4,
+      "medianRating": 4.45,
+      "recordCount": 4
+    },
+    {
+      "name": "一只国王",
+      "category": "烤肉",
+      "sourceRows": [
+        293,
+        322,
+        335
+      ],
+      "distinctBranchLabels": 3,
+      "medianRating": 4.5,
+      "recordCount": 3
+    },
+    {
+      "name": "新石器烤肉",
+      "category": "烤肉",
+      "sourceRows": [
+        323,
+        325
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.5,
+      "recordCount": 2
+    },
+    {
+      "name": "山岭之心",
+      "category": "烤肉",
+      "sourceRows": [
+        316,
+        348,
+        362,
+        371
+      ],
+      "distinctBranchLabels": 4,
+      "medianRating": 4.35,
+      "recordCount": 4
+    },
+    {
+      "name": "钱小奴",
+      "category": "自助餐",
+      "sourceRows": [
+        336,
+        410
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.5,
+      "recordCount": 2
+    },
+    {
+      "name": "亚马逊",
+      "category": "自助餐",
+      "sourceRows": [
+        302,
+        386
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.3,
+      "recordCount": 2
+    },
+    {
+      "name": "蓉城四海",
+      "category": "自助餐",
+      "sourceRows": [
+        353,
+        365,
+        390
+      ],
+      "distinctBranchLabels": 3,
+      "medianRating": 4.3,
+      "recordCount": 3
+    },
+    {
+      "name": "柳真真",
+      "category": "烤肉",
+      "sourceRows": [
+        355,
+        363
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.35,
+      "recordCount": 2
+    },
+    {
+      "name": "鲜牛道",
+      "category": "烤肉",
+      "sourceRows": [
+        292,
+        351
+      ],
+      "distinctBranchLabels": 2,
+      "medianRating": 4.5,
+      "recordCount": 2
+    },
+    {
+      "name": "海市盛宴",
+      "category": "火锅",
+      "sourceRows": [
+        287,
+        303,
+        304,
+        306
+      ],
+      "distinctBranchLabels": 4,
+      "medianRating": 4.6,
+      "recordCount": 4
+    }
+  ]
+}

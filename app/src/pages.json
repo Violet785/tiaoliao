@@ -28,6 +28,10 @@
         "backgroundTextStyle": "dark"
       }
     },
+    { "path": "pages/feedback/index", "style": { "navigationBarTitleText": "反馈登记" } },
+    { "path": "pages/user/index", "style": { "navigationBarTitleText": "个人用户" } },
+    { "path": "pages/admin/review", "style": { "navigationBarTitleText": "审核管理" } },
+    { "path": "pages/recipe/detail", "style": { "navigationBarTitleText": "蘸料详情" } },
     {
       "path": "pages/common/login",
       "style": {
@@ -38,6 +42,7 @@
   ],
 
   "globalStyle": {
+    "navigationStyle": "custom",
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "蘸料",
     "navigationBarBackgroundColor": "#F6F3EE",

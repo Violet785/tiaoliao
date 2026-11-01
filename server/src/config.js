@@ -11,6 +11,7 @@ function int(value, fallback) {
 }
 
 export const config = {
+  host: process.env.HOST || '0.0.0.0',
   port: int(process.env.PORT, 3000),
   env: process.env.NODE_ENV || 'development',
   isProd: process.env.NODE_ENV === 'production',
@@ -19,6 +20,7 @@ export const config = {
 
   // SQLite 文件路径。注意：DatabaseSync 不会自动建父目录，db/index.js 会确保存在
   dbPath: path.resolve(SERVER_ROOT, process.env.DB_PATH || 'data/dev.db'),
+  uploadDir: path.resolve(SERVER_ROOT, process.env.UPLOAD_DIR || 'data/uploads'),
 
   // 打包好的前端目录（npm run build:h5 的产物）。
   // 生产环境由本服务一并托管 —— 于是「部署」就只是把一个 Node 进程跑起来，

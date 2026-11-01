@@ -5,6 +5,7 @@ import express from 'express'
 import cors from 'cors'
 import config from './config.js'
 import apiRoutes from './routes/index.js'
+import uploadRoutes from './routes/uploads.js'
 import { errorHandler, notFoundHandler } from './middleware/error.js'
 import { runMigrations } from './db/migrate.js'
 import { purgeExpiredSessions } from './services/authService.js'
@@ -15,6 +16,7 @@ const app = express()
 // 生产环境应该收紧成白名单，但在小程序里请求不受 CORS 约束，
 // 所以这里放开不会成为上线的安全问题。
 app.use(cors())
+app.use('/api/uploads', uploadRoutes)
 app.use(express.json({ limit: '256kb' }))
 app.use(express.urlencoded({ extended: true, limit: '256kb' }))
 
@@ -76,7 +78,7 @@ runMigrations({ silent: true })
 const purged = purgeExpiredSessions()
 if (purged > 0) console.log(`[session] 清理了 ${purged} 条过期会话`)
 
-app.listen(config.port, () => {
+app.listen(config.port, config.host, () => {
   console.log('')
   console.log(`  蘸料小程序 · 后端已启动`)
   console.log(`  ────────────────────────────────────`)

@@ -66,7 +66,7 @@ export function optionalAuth(req, _res, next) {
 /** 需要管理员角色 */
 export function requireAdmin(req, _res, next) {
   if (!req.user) return next(unauthorized())
-  if (req.user.role !== 'admin' && req.user.role !== 'moderator') {
+  if (req.user.role !== 'admin') {
     return next(forbidden('需要管理员权限'))
   }
   next()

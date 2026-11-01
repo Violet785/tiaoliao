@@ -80,7 +80,7 @@ export function pagination(query = {}) {
 
 /** 从 URL 参数取正整数 id，顺便挡掉 /api/recipes/abc 这种 */
 export function pathId(value, label = 'id') {
-  const n = Number.parseInt(value, 10)
-  if (!Number.isInteger(n) || n <= 0) throw badRequest(`${label} 不合法`)
+  const n = Number(value)
+  if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(n) || n <= 0) throw badRequest(`${label} 不合法`)
   return n
 }

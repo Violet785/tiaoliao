@@ -5,6 +5,8 @@ import { badRequest, notFound, forbidden } from '../utils/errors.js'
 import { CATEGORY_META, amountLabel, amountAnchor } from '../constants.js'
 import { computeHotScore, computeTasteProfile, summarizeAmount } from './recipeStats.js'
 import { recalcCounters } from './restaurantService.js'
+import { counts } from './voteService.js'
+import { imagesFor } from './mediaService.js'
 
 const RECIPE_COLUMNS = `
   r.id, r.restaurant_id AS restaurantId, r.user_id AS userId,
@@ -21,10 +23,10 @@ const RECIPE_COLUMNS = `
 /** 列表 / 搜索。restaurantId 为空时是全站「发现」流。 */
 export function list({
   restaurantId = null, keyword = '', sort = 'hot', tasteTag = '', foodTag = '',
-  page = 1, pageSize = 20, offset = 0,
+  page = 1, pageSize = 20, offset = 0, currentUserId = null,
 } = {}) {
   const db = getDb()
-  const where = [`r.status = 'published'`]
+  const where = [`r.status = 'published'`, `EXISTS (SELECT 1 FROM restaurants s WHERE s.id = r.restaurant_id AND s.status = 'published')`]
   const params = []
 
   if (restaurantId) {
@@ -51,6 +53,7 @@ export function list({
   const whereSql = `WHERE ${where.join(' AND ')}`
   const orderSql =
     sort === 'new' ? 'r.id DESC'
+    : sort === 'likes' ? '(SELECT COUNT(*) FROM recipe_votes v WHERE v.recipe_id = r.id AND v.value = 1) DESC, r.id DESC'
     : sort === 'rating' ? 'r.rating_avg DESC, r.rating_count DESC, r.id DESC'
     : sort === 'cook' ? 'r.cook_count DESC, r.id DESC'
     : 'r.hot_score DESC, r.id DESC'
@@ -73,14 +76,14 @@ export function list({
     .all(...params, pageSize, offset)
 
   return {
-    list: rows.map(toCard),
+    list: rows.map(row => toCard(row, currentUserId)),
     total, page, pageSize,
     hasMore: page * pageSize < total,
   }
 }
 
 /** 把一行 JOIN 结果压成前端统一的 RecipeCard 形状 */
-function toCard(row) {
+function toCard(row, currentUserId) {
   const items = getDb()
     .prepare(
       `SELECT ri.condiment_id AS condimentId, ri.condiment_name AS condimentName,
@@ -95,6 +98,8 @@ function toCard(row) {
 
   return {
     id: row.id,
+    ...counts(row.id, currentUserId),
+    images: imagesFor(row.id),
     title: row.title,
     description: row.description,
     itemCount: row.itemCount,
@@ -126,11 +131,11 @@ export function detail(id, currentUserId = null) {
        FROM recipes r
        JOIN users u ON u.id = r.user_id
        JOIN restaurants s ON s.id = r.restaurant_id
-       WHERE r.id = ?`,
+       WHERE r.id = ? AND s.status = 'published'`,
     )
     .get(id)
 
-  if (!row || row.status === 'deleted') throw notFound('配方不存在')
+  if (!row || row.status !== 'published') throw notFound('配方不存在')
 
   const items = db
     .prepare(
@@ -157,6 +162,8 @@ export function detail(id, currentUserId = null) {
   const result = {
     recipe: {
       id: row.id,
+      ...counts(row.id, currentUserId),
+      images: imagesFor(row.id),
       title: row.title,
       description: row.description,
       servingNote: row.servingNote,
@@ -173,8 +180,6 @@ export function detail(id, currentUserId = null) {
     restaurant: {
       id: row.restaurantId,
       name: row.shopName,
-      city: row.shopCity,
-      address: row.shopAddress,
     },
     author: { id: row.userId, nickname: row.authorNickname, avatarUrl: row.authorAvatar },
     items: items.map((it) => ({
@@ -323,7 +328,7 @@ export function create(input, userId) {
   } = input
 
   const shop = db
-    .prepare(`SELECT id FROM restaurants WHERE id = ? AND status <> 'merged'`)
+    .prepare(`SELECT id FROM restaurants WHERE id = ? AND status = 'published'`)
     .get(restaurantId)
   if (!shop) throw badRequest('餐馆不存在')
 
@@ -362,8 +367,8 @@ export function create(input, userId) {
 
 export function update(id, input, userId) {
   const db = getDb()
-  const row = db.prepare('SELECT user_id AS userId, restaurant_id AS restaurantId FROM recipes WHERE id = ?').get(id)
-  if (!row || row.status === 'deleted') throw notFound('配方不存在')
+  const row = db.prepare('SELECT user_id AS userId, restaurant_id AS restaurantId, status FROM recipes WHERE id = ?').get(id)
+  if (!row || row.status !== 'published') throw notFound('配方不存在')
   if (row.userId !== userId) throw forbidden('只能修改自己发布的配方')
 
   const { title, description = '', servingNote = '', items = [], tasteTags = [], foodTags = [], sceneTags = [] } = input
@@ -454,8 +459,9 @@ export function logCook(id, userId, { finished = false, stepReached = 0, skipped
  * 「不放」(level=0) 的项 step_index 为 NULL，不进步骤序列 ——
  * 它们只在开场/收尾作为「本配方不放：韭菜花酱」出现。
  */
-function prepareItems(items) {
+export function prepareItems(items) {
   const db = getDb()
+  if (!Array.isArray(items) || !items.length || items.some(it => !it || typeof it !== 'object' || typeof it.condimentId !== 'string')) throw badRequest('调料格式不合法')
 
   // 一次查完所有调料，避免在循环里逐条查库
   const ids = [...new Set(items.map((it) => it.condimentId).filter(Boolean))]
@@ -467,7 +473,7 @@ function prepareItems(items) {
       `SELECT id, name, short_name AS shortName, category, stage_order AS stageOrder,
               sort_order AS sortOrder, unit_hint AS unitHint,
               spicy_weight AS spicyWeight, salty_weight AS saltyWeight, rich_weight AS richWeight
-       FROM condiments WHERE id IN (${placeholders})`,
+       FROM condiments WHERE id IN (${placeholders}) AND status = 'published'`,
     )
     .all(...ids)
 

@@ -18,8 +18,7 @@ import { PAGE_SIZE } from '../config/index.js'
 export const SORTS = [
   { key: 'hot', label: '最热' },
   { key: 'new', label: '最新' },
-  { key: 'rating', label: '好评' },
-  { key: 'cook', label: '最多人配' },
+  { key: 'likes', label: '点赞最多' },
 ]
 
 export function list({

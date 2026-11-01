@@ -9,6 +9,7 @@ import recipeRoutes from './recipes.js'
 import userRoutes from './users.js'
 import condimentRoutes from './condiments.js'
 import tagRoutes from './tags.js'
+import submissionRoutes from './submissions.js'
 import { ok } from '../utils/response.js'
 import { getDb } from '../db/index.js'
 
@@ -32,5 +33,6 @@ router.use('/restaurants', restaurantRoutes)
 router.use('/recipes', recipeRoutes)
 router.use('/condiments', condimentRoutes)
 router.use('/tags', tagRoutes)
+router.use('/submissions', submissionRoutes)
 
 export default router

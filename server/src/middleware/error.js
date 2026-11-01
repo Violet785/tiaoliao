@@ -17,6 +17,9 @@ export function notFoundHandler(req, res) {
 
 /** 全局错误处理。Express 靠「四个参数」识别这是错误中间件，_next 不能省。 */
 export function errorHandler(err, _req, res, _next) {
+  if (err.type === 'entity.too.large' || err.type === 'entity.parse.failed') {
+    return res.status(err.status || 400).json({ code: CODES.BAD_REQUEST, msg: err.type === 'entity.too.large' ? '提交内容过大' : '提交内容格式不合法', data: null })
+  }
   // 已知的业务错误：按它自带的 code / httpStatus 返回
   if (err instanceof AppError) {
     const body = { code: err.code, msg: err.message, data: null }

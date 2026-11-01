@@ -35,19 +35,26 @@ export function bindAll(obj) {
  * ⚠️ 铁律：fn 里绝对不能出现 await。
  * DatabaseSync 是同步驱动，事务里挂起会把整个进程的写锁一直攥着。
  */
+const depths = new WeakMap()
 export function withTx(db, fn) {
-  db.exec('BEGIN IMMEDIATE')
+  const depth = depths.get(db) || 0
+  const savepoint = `nested_${depth}`
+  db.exec(depth ? `SAVEPOINT ${savepoint}` : 'BEGIN IMMEDIATE')
+  depths.set(db, depth + 1)
   try {
     const result = fn()
-    db.exec('COMMIT')
+    db.exec(depth ? `RELEASE SAVEPOINT ${savepoint}` : 'COMMIT')
     return result
   } catch (err) {
     try {
-      db.exec('ROLLBACK')
+      db.exec(depth ? `ROLLBACK TO SAVEPOINT ${savepoint}` : 'ROLLBACK')
+      if (depth) db.exec(`RELEASE SAVEPOINT ${savepoint}`)
     } catch {
       // 回滚本身失败（例如连接已断）时不要掩盖原始错误
     }
     throw err
+  } finally {
+    depths.set(db, depth)
   }
 }
 

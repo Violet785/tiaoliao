@@ -15,7 +15,7 @@
     "seed:demo": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/seed/demo.js",
     "reset": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/reset.js",
     "db:info": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/db-info.js",
-    "smoke": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/smoke.js"
+    "smoke": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/community-smoke.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

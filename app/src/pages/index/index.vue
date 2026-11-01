@@ -1,273 +1,35 @@
 <template>
-  <view class="page">
-    <!-- 搜索框是个按钮不是输入框：真正搜索在选店页做，
-         首页只负责把用户送过去，避免两处维护同一套搜索逻辑 -->
-    <view class="search" hover-class="search-hover" @click="goSearch">
-      <view class="search-glyph">搜</view>
-      <view class="search-ph">搜店名，比如「汉巴味德」</view>
-    </view>
-
-    <view class="head">
-      <view class="head-left">
-        <text class="head-title">去哪家店</text>
-        <text v-if="total > 0" class="head-sub">{{ total }} 家</text>
-      </view>
-
-      <!-- 「我的」页还没做，登录入口暂时寄在这里 -->
-      <view class="me" :class="{ 'me-on': userStore.isLoggedIn }" hover-class="me-hover" @click="onMe">
-        <text class="me-glyph">{{ meGlyph }}</text>
-        <text class="me-name">{{ meName }}</text>
-      </view>
-    </view>
-
-    <view v-if="loading" class="loading">加载中…</view>
-
-    <Empty
-      v-else-if="failed"
-      glyph="断"
-      text="没能连上服务器"
-      hint="检查一下网络，或者下拉刷新试试"
-      action-text="重试"
-      @action="load"
-    />
-
-    <template v-else>
-      <RestaurantCard v-for="s in shops" :key="s.id" :restaurant="s" @select="goShop" />
-
-      <Empty
-        v-if="!shops.length"
-        glyph="店"
-        text="还没有人建过店"
-        hint="你要去的那家店没人建？建一家，顺手写个配方"
-        action-text="建一家店"
-        @action="goCreate"
-      />
-
-      <!-- 有数据时也要留建店入口 —— 搜不到的情况比想象中多 -->
-      <view v-else class="more" hover-class="more-hover" @click="goCreate">
-        <text class="more-glyph">+</text>
-        <text>没找到？建一家</text>
-      </view>
-    </template>
-  </view>
+  <view><SiteHeader /><view class="shell">
+    <view class="home-hero"><view class="eyebrow">DIP INTO SOMETHING GOOD</view><view class="page-title">找到店名，配一碗喜欢的蘸料。</view><view class="muted">大家分享的好味道，都在这里。</view><view class="row search-row"><input v-model="keyword" class="search-input" placeholder="搜索店名，例如 牛NEW、龍哥" confirm-type="search" @confirm="search" /><button class="btn" @click="search">找店铺</button></view></view>
+    <view class="row between section-title"><text>选一家店，开始蘸</text><text class="muted">{{ total }} 家店铺</text></view>
+    <view v-if="loading" class="empty">正在找好味道…</view>
+    <view v-else-if="failed" class="empty"><view>加载失败，请稍后重试</view><button class="ghost" @click="load(true)">重新加载</button></view>
+    <view v-else-if="!shops.length" class="empty">暂无店铺，可通过右上角「反馈登记」提交店名。</view>
+    <view v-else class="grid"><RestaurantCard v-for="shop in shops" :key="shop.id" :restaurant="shop" @select="goShop" /></view>
+    <button v-if="hasMore" class="ghost load-more" :disabled="loadingMore" @click="load(false)">加载更多</button>
+  </view></view>
 </template>
-
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app'
-import * as restaurantApi from '../../api/restaurant.js'
+import SiteHeader from '../../components/SiteHeader.vue'
 import RestaurantCard from '../../components/RestaurantCard.vue'
-import Empty from '../../components/Empty.vue'
-import { useUserStore } from '../../store/user.js'
-import { toast } from '../../utils/feedback.js'
-
-const userStore = useUserStore()
-
-const shops = ref([])
-const total = ref(0)
-const loading = ref(true)
-const failed = ref(false)
-
-// 都用 computed —— 登录/退出后不用手动刷新，store 一变这里就跟着变
-const meName = computed(() => (userStore.isLoggedIn ? userStore.displayName : '未登录'))
-const meGlyph = computed(() =>
-  userStore.isLoggedIn ? (userStore.displayName || '我').slice(0, 1) : '登',
-)
-
-async function load() {
-  loading.value = true
-  failed.value = false
-  try {
-    const res = await restaurantApi.list({ sort: 'hot', pageSize: 10 })
-    shops.value = res.list || []
-    total.value = res.total || 0
-  } catch {
-    // request.js 已经弹过 toast 了，这里只负责把页面切到失败态
-    failed.value = true
-  } finally {
-    loading.value = false
-  }
+import * as api from '../../api/restaurant.js'
+const shops = ref([]), total = ref(0), keyword = ref(''), loading = ref(true), failed = ref(false), page = ref(1), hasMore = ref(false), loadingMore = ref(false)
+async function load(reset = true) {
+  if (loadingMore.value) return
+  loadingMore.value = true; if (reset) { page.value = 1; loading.value = true }
+  try { const r = await api.list({ page: page.value, pageSize: 12 }); shops.value = reset ? r.list : [...shops.value, ...r.list]; total.value = r.total; hasMore.value = r.hasMore; page.value++; failed.value = false } catch { failed.value = true } finally { loading.value = false; loadingMore.value = false }
 }
-
-onLoad(load)
-
-onPullDownRefresh(async () => {
-  await load()
-  uni.stopPullDownRefresh()
-})
-
-function goSearch() {
-  uni.navigateTo({ url: '/pages/restaurant/list' })
-}
-
-function goShop(shop) {
-  uni.navigateTo({ url: `/pages/restaurant/detail?id=${shop.id}` })
-}
-
-function goCreate() {
-  uni.navigateTo({ url: '/pages/restaurant/create' })
-}
-
-/**
- * 点右上角那个人。
- *
- * 未登录 → 去登录页。
- * 已登录 → 目前只能退出（「我的」页还没做）。
- *   留这一条是刚需：不然登进去就出不来了，想换个账号测都没法测。
- */
-function onMe() {
-  if (!userStore.isLoggedIn) {
-    uni.navigateTo({ url: '/pages/common/login' })
-    return
-  }
-  uni.showActionSheet({
-    itemList: ['退出登录'],
-    success: async ({ tapIndex }) => {
-      if (tapIndex !== 0) return
-      await userStore.logout()
-      toast('已退出')
-    },
-  })
-}
+function search() { uni.navigateTo({ url: `/pages/restaurant/list?keyword=${encodeURIComponent(keyword.value)}` }) }
+function goShop(shop) { uni.navigateTo({ url: `/pages/restaurant/detail?id=${shop.id}` }) }
+onLoad(() => load()); onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
-
 <style scoped>
-.page {
-  min-height: 100vh;
-  padding: var(--gap);
-  box-sizing: border-box;
-}
-
-.search {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  height: 88rpx;
-  padding: 0 28rpx;
-  background: var(--c-card);
-  border-radius: 44rpx;
-  margin-bottom: 40rpx;
-}
-
-.search-hover {
-  background: #FAF8F5;
-}
-
-.search-glyph {
-  flex-shrink: 0;
-  width: 44rpx;
-  height: 44rpx;
-  line-height: 44rpx;
-  text-align: center;
-  font-size: 24rpx;
-  color: var(--c-text-2);
-  background: var(--c-bg);
-  border-radius: 50%;
-}
-
-.search-ph {
-  font-size: 28rpx;
-  color: var(--c-text-3);
-}
-
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24rpx;
-}
-
-.head-left {
-  display: flex;
-  align-items: baseline;
-  gap: 14rpx;
-  min-width: 0;
-}
-
-.head-title {
-  font-size: 34rpx;
-  font-weight: 600;
-  color: var(--c-text);
-}
-
-.head-sub {
-  font-size: 25rpx;
-  color: var(--c-text-3);
-}
-
-/* ── 右上角登录态 ── */
-
-.me {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-  max-width: 260rpx;
-  height: 60rpx;
-  padding: 0 20rpx 0 10rpx;
-  background: var(--c-card);
-  border-radius: 30rpx;
-}
-
-.me-hover {
-  background: #FAF8F5;
-}
-
-.me-glyph {
-  flex-shrink: 0;
-  width: 40rpx;
-  height: 40rpx;
-  line-height: 40rpx;
-  text-align: center;
-  font-size: 24rpx;
-  color: var(--c-text-2);
-  background: var(--c-bg);
-  border-radius: 50%;
-}
-
-.me-on .me-glyph {
-  color: #fff;
-  background: var(--c-primary);
-}
-
-.me-name {
-  font-size: 25rpx;
-  color: var(--c-text-2);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.me-on .me-name {
-  color: var(--c-text);
-  font-weight: 600;
-}
-
-.loading {
-  padding: 80rpx 0;
-  text-align: center;
-  font-size: 28rpx;
-  color: var(--c-text-3);
-}
-
-.more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12rpx;
-  height: 96rpx;
-  background: var(--c-card);
-  border-radius: var(--radius-lg);
-  font-size: 28rpx;
-  color: var(--c-text-2);
-}
-
-.more-hover {
-  background: #FAF8F5;
-}
-
-.more-glyph {
-  font-size: 34rpx;
-  color: var(--c-primary);
-}
+.home-hero { padding: 34px 0 30px; border-bottom: 1px solid #e5dacc; }
+.home-hero .page-title { max-width: 670px; font-size: 42px; letter-spacing: -1px; margin: 16px 0; }
+.search-row { margin-top: 28px; max-width: 650px; }
+.search-input { background: #fff; }
+.load-more { margin: 26px auto; }
+@media(max-width:760px) { .home-hero { padding: 14px 0 26px; } .home-hero .page-title { font-size: 32px; max-width: 330px; line-height: 1.4; } .search-row { gap: 8px; } .search-row .btn { padding: 0 14px; } .search-input { font-size: 13px; } }
 </style>

@@ -5,6 +5,8 @@ import { requireAuth, optionalAuth } from '../middleware/auth.js'
 import { ok, okList } from '../utils/response.js'
 import { str, arr, int, bool, pagination, pathId } from '../middleware/validate.js'
 import { badRequest } from '../utils/errors.js'
+import { submit } from '../services/submissionService.js'
+import { vote } from '../services/voteService.js'
 
 const router = Router()
 
@@ -43,7 +45,7 @@ function readTags(body) {
 }
 
 /** 全站配方流（「发现」页）。也支持按标签筛选。 */
-router.get('/', (req, res) => {
+router.get('/', optionalAuth, (req, res) => {
   const { page, pageSize, offset } = pagination(req.query)
   const result = recipeService.list({
     keyword: req.query.keyword ?? '',
@@ -51,12 +53,13 @@ router.get('/', (req, res) => {
     tasteTag: req.query.tasteTag ?? '',
     foodTag: req.query.foodTag ?? '',
     page, pageSize, offset,
+    currentUserId: req.user?.id,
   })
   return okList(res, result.list, { page, pageSize, total: result.total })
 })
 
 router.post('/', requireAuth, (req, res) => {
-  const recipeId = recipeService.create(
+  const result = submit('recipe',
     {
       restaurantId: int(req.body, 'restaurantId', { min: 1, label: '餐馆' }),
       title: str(req.body, 'title', { max: 40, label: '配方名' }),
@@ -65,12 +68,13 @@ router.post('/', requireAuth, (req, res) => {
       items: readItems(req.body),
       ...readTags(req.body),
       clientToken: str(req.body, 'clientToken', { required: false, max: 64 }) || null,
+      imageIds: arr(req.body, 'imageIds', { max: 4 }),
     },
     req.user.id,
   )
 
-  res.status(201)
-  return ok(res, recipeService.detail(recipeId, req.user.id))
+  res.status(202)
+  return ok(res, result)
 })
 
 // optionalAuth：不登录也能看配方（浏览不该有门槛），
@@ -89,19 +93,24 @@ router.get('/:id/cook', (req, res) =>
 
 router.patch('/:id', requireAuth, (req, res) => {
   const id = pathId(req.params.id)
-  recipeService.update(
-    id,
+  const result = submit('recipe',
     {
       title: str(req.body, 'title', { max: 40, label: '配方名' }),
       description: str(req.body, 'description', { required: false, max: 200, label: '简介' }),
       servingNote: str(req.body, 'servingNote', { required: false, max: 60, label: '分量说明' }),
       items: readItems(req.body),
       ...readTags(req.body),
+      imageIds: arr(req.body, 'imageIds', { max: 4 }),
+      clientToken: str(req.body, 'clientToken', { required: false, max: 64 }) || null,
     },
     req.user.id,
+    id,
   )
-  return ok(res, recipeService.detail(id, req.user.id))
+  res.status(202)
+  return ok(res, result)
 })
+
+router.put('/:id/vote', requireAuth, (req, res) => ok(res, vote(pathId(req.params.id), req.user.id, req.body?.value)))
 
 router.delete('/:id', requireAuth, (req, res) =>
   ok(res, recipeService.remove(pathId(req.params.id), req.user.id)))
