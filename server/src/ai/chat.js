@@ -1,15 +1,26 @@
-// 对话逻辑：先取真实数据，再让模型组织语言；模型不可用时走规则话术。
+// 对话逻辑：规则先选，模型后说；模型不可用时走规则话术。
 //
-// 关键取舍：模型永远不接触数据库，只在「已经查好的候选」里挑。
-// 这样即使模型胡编，也不会出现不存在的店；没有 key 时体验也完整。
+// 关键取舍：选哪一条由规则决定，模型只负责把它讲成一句话。
+// 小模型（0.5B–1.5B）判断力弱但语言还过得去，这样分工既稳又快。
 import { chat as askModel } from './provider.js'
 import { aiConfig } from './config.js'
 import { recommendRecipes, summarizeForPrompt } from './recommend.js'
-import { SYSTEM_CHAT, buildContext } from './prompt.js'
+import { SYSTEM_VERBALIZE } from './prompt.js'
 import * as data from './data.js'
 
 const MAX_HISTORY = 6
 const MAX_INPUT = 300
+
+/** 按问题里的口味词挑候选（规则选，模型不参与）。 */
+function pickByIntent(question, list) {
+  const q = question.toLowerCase()
+  const has = (...words) => words.some((w) => q.includes(w))
+
+  if (has('清淡', '不辣', '微辣', '怕辣')) return [...list].sort((a, b) => a.heat - b.heat)
+  if (has('辣', '重口', '过瘾', '重味')) return [...list].sort((a, b) => b.heat - a.heat)
+  if (has('咸', '酱')) return [...list].sort((a, b) => b.salt - a.salt)
+  return list
+}
 
 /** 规则模式下的兜底回答。按关键词挑候选，保证「没配模型也能用」。 */
 function ruleReply(question, { list, profile }) {
@@ -24,14 +35,7 @@ function ruleReply(question, { list, profile }) {
     return '现在库里还没有已发布的配方，等大家上传并审核通过后我就能推荐了。'
   }
 
-  let picked = list
-  if (has('清淡', '不辣', '微辣', '怕辣')) {
-    picked = [...list].sort((a, b) => a.heat - b.heat).slice(0, 3)
-  } else if (has('辣', '重口', '过瘾', '重味')) {
-    picked = [...list].sort((a, b) => b.heat - a.heat).slice(0, 3)
-  } else if (has('咸', '酱')) {
-    picked = [...list].sort((a, b) => b.salt - a.salt).slice(0, 3)
-  }
+  const picked = pickByIntent(question, list).slice(0, 3)
 
   const top = picked[0]
   const rest = picked.slice(1, 3).map((r) => `《${r.title}》@${r.shop}`).join('、')
@@ -49,6 +53,28 @@ function focusCandidates(question, list) {
   return hit.length ? hit : list
 }
 
+/** 清理模型输出：去掉标签、多余换行；明显在念字段名的直接判为无效。 */
+function cleanReply(text) {
+  if (!text) return null
+
+  const flat = String(text).replace(/\s+/g, ' ').trim()
+  if (!flat) return null
+
+  // 「配方名：」「辣度：」这类标签出现，说明它在复述输入，不是回答
+  if (/(配方名|店名|辣度|咸度|醇厚)\s*[:：]/.test(flat)) return null
+  // 标签省略冒号、但把数值抄了一遍的情况也要拦（0.5B 很爱这么写）
+  if (/(辣度|咸度|醇厚)\s*\d/.test(flat)) return null
+  if (/^[-*\d]\.\s/.test(flat)) return null
+  if (flat.length > 80) return null
+
+  return flat
+}
+
+/** 打招呼之类的非检索问题，直接走规则，别浪费一次推理。 */
+function isSmallTalk(question) {
+  return /^(你好|您好|hi|hello|哈喽|在吗|你是谁|你能做什么)[!！。.？?\s]*$/i.test(question)
+}
+
 /**
  * @param {{message: string, history?: Array, userId?: number|null}} input
  * @returns {Promise<{reply: string, source: 'ai'|'rule', mode: string}>}
@@ -64,26 +90,43 @@ export async function chatReply({ message, history = [], userId = null }) {
   const candidates = focusCandidates(question, rec.list)
   const restaurants = data.searchRestaurants(question, 3)
 
-  if (aiConfig.enabled) {
-    const messages = [
-      { role: 'system', content: SYSTEM_CHAT },
-      ...history
-        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-        .slice(-MAX_HISTORY)
-        .map((m) => ({ role: m.role, content: m.content.slice(0, 500) })),
-      {
-        role: 'user',
-        content: buildContext({
-          question,
-          recipes: candidates,
-          restaurants,
-          profile: rec.profile,
-        }),
-      },
-    ]
+  // 寒暄不查库、不推理：小模型答这类问题容易硬推一份配方，很怪
+  if (isSmallTalk(question)) {
+    return {
+      reply: '我是蘸料的推荐助手。可以问我「推荐一份清淡的」「哪家店的麻酱好吃」「牛很鲜有什么配方」。',
+      source: 'rule',
+      mode: aiConfig.enabled ? 'ai' : 'rule',
+    }
+  }
 
-    const text = await askModel(messages)
-    if (text) return { reply: text, source: 'ai', mode: 'ai' }
+  if (aiConfig.enabled) {
+    // 分工：规则选哪一条，模型只负责把这一条讲成人话。
+    //
+    // 为什么不把整个候选列表丢给模型：0.5B/1.5B 在 CPU 上既慢又会「照抄列表」，
+    // 实测会推荐错店、编造标题。锁定唯一目标后，它只需要组织一句话，稳定性完全不同。
+    const picked = pickByIntent(question, candidates)
+    const target = picked[0]
+
+    if (target) {
+      const messages = [
+        { role: 'system', content: SYSTEM_VERBALIZE },
+        ...history
+          .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+          .slice(-MAX_HISTORY)
+          .map((m) => ({ role: m.role, content: m.content.slice(0, 300) })),
+        {
+          role: 'user',
+          content: `配方名：${target.title}\n店名：${target.shop}\n辣度：${target.heat}，咸度：${target.salt}，醇厚：${target.rich}\n用户说：${question}`,
+        },
+      ]
+
+      // 一句话就够，token 上限压到 90，避免它发散成长篇
+      const text = await askModel(messages, { maxTokens: 90, temperature: 0.5 })
+      const clean = cleanReply(text)
+      // 小模型经常把「配方名：…辣度：…」原样吐回来。这种输出直接丢掉走规则：
+      // 与其念字段名，不如用模板给一句完整的话。
+      if (clean) return { reply: clean, source: 'ai', mode: 'ai' }
+    }
   }
 
   // 规则模式用「聚焦后的候选」，这样问「牛很鲜有什么配方」才会先答那家店

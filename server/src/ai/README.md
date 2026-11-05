@@ -33,6 +33,28 @@ AI_API_KEY=sk-xxxx                        # 留空 = 规则模式
 AI_TIMEOUT=20000
 ```
 
+### 本地小模型（Ollama）
+
+不想用云端 key 时，在本机或服务器装 Ollama，指向它的 OpenAI 兼容接口：
+
+```bash
+AI_BASE_URL=http://127.0.0.1:11434/v1
+AI_MODEL=qwen2.5:1.5b
+AI_API_KEY=local        # 随便填，非空即视为启用
+AI_TIMEOUT=60000        # CPU 推理慢，超时要放宽
+```
+
+内存与速度的参考（无 GPU 的 x86 服务器）：
+
+| 模型 | 内存占用 | 2 核上的生成速度 |
+|---|---|---|
+| qwen2.5:0.5b | ~400 MB | 8–15 token/s |
+| qwen2.5:1.5b | ~1.1 GB | 3–6 token/s |
+| qwen2.5:3b | ~2.0 GB | 2–3 token/s，2G 机器会 OOM |
+
+2 核 2G 的机器建议：1.5b + 2G swap，并给 Ollama 设
+`OLLAMA_NUM_PARALLEL=1`、`OLLAMA_MAX_LOADED_MODELS=1`，否则并发请求会直接把内存打爆。
+
 ## 接口
 
 | 方法 | 路径 | 说明 |

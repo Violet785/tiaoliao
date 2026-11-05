@@ -13,14 +13,42 @@ export const SYSTEM_CHAT = `你是「蘸料」社区的助手，帮用户找店�
 1. 只依据给你的候选数据回答；数据里没有的店或配方，直接说没查到。
 2. 用户问「吃什么/推荐」时，从候选里挑 1–3 个，说清是哪家店的哪份、为什么适合他。
 3. 用户提到口味（清淡/重口/微辣/不要香菜之类），要对应到候选的辣咸醇数值来挑。
-4. 回答 120 字以内，中文，不要 Markdown 列表符号。`
+4. 用一到两句话回答，全文不超过 60 字，中文，不要 Markdown。
+5. 绝对不要复述候选列表，不要以「-」「1.」开头，也不要写「候选配方」「用户问题」这类标签。`
 
 export const SYSTEM_SEARCH = `你是「蘸料」社区的搜索助手。用户输入关键词，你会拿到匹配到的店铺和配方。
 请用一句话总结「搜到了什么」，再挑最值得看的 2–3 条说清楚为什么值得看。
 只依据给到的数据，不要编造。全文 100 字以内，中文，不要列表符号。`
 
-/** 把候选和用户画像拼成一段上下文。 */
-export function buildContext({ question, recipes, restaurants, profile }) {
+/**
+ * 「复述者」提示词：配方已经由规则选定，模型只把它讲成一句人话。
+ *
+ * 这是小模型（0.5B–1.5B）唯一稳定的用法 —— 不让它挑，只让它说。
+ */
+export const SYSTEM_VERBALIZE = `你是「蘸料」社区里懂吃的朋友，正在向用户推荐一份已经选定的蘸料配方。
+规则：
+1. 只说这一份配方，不要提别的配方，也不要编造没给的店名。
+2. 用一到两句话，不超过 45 字，像朋友聊天，不要像广告。
+3. 不要输出「配方名：」「辣度：」这类标签，不要罗列数字，不要用列表符号。
+
+示例：
+资料：配方名：万能麻酱碟 / 店名：汉巴味德 / 辣度：0，咸度：78，醇厚：100 / 用户说：推荐一份香的
+回答：汉巴味德这份万能麻酱碟芝麻香特别足，一点都不辣，怕辣的也能放心吃。
+
+示例：
+资料：配方名：沙茶锅底碟 / 店名：牛很鲜 / 辣度：13，咸度：90，醇厚：80 / 用户说：牛很鲜有什么配方
+回答：牛很鲜的沙茶锅底碟走咸鲜路线，带一点点辣，涮肉蘸着很够味。`
+
+/**
+ * 把候选和用户画像拼成一段「资料」，不夹带问题。
+ *
+ * 为什么把问题单独留出来：0.5B 这种小模型很容易把上下文当模板复读，
+ * 「用户问题：xxx」写在资料里，它会把这一行原样吐出来。
+ * 资料放 system，问题放 user，小模型的表现明显更稳。
+ *
+ * 候选也不用编号 —— 编号会诱导它照着列表抄。
+ */
+export function buildContext({ recipes, restaurants, profile }) {
   const parts = []
 
   if (profile) {
@@ -32,8 +60,11 @@ export function buildContext({ question, recipes, restaurants, profile }) {
     parts.push(`相关店铺：\n${restaurants.map((s) => `- ${s.name}（${s.category}，${s.recipeCount} 份配方）`).join('\n')}`)
   }
   if (recipes?.length) {
-    parts.push(`候选配方：\n${recipes.map((r, i) => `${i + 1}. 《${r.title}》@${r.shop}｜辣${r.heat} 咸${r.salt} 醇${r.rich}｜均分${r.rating}｜打卡${r.cookCount}`).join('\n')}`)
+    parts.push(
+      `候选配方：\n${recipes
+        .map((r) => `- 《${r.title}》@${r.shop}｜辣${r.heat} 咸${r.salt} 醇${r.rich}｜均分${r.rating}｜打卡${r.cookCount}`)
+        .join('\n')}`,
+    )
   }
-  parts.push(`用户问题：${question}`)
   return parts.join('\n\n')
 }

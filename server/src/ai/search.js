@@ -55,13 +55,14 @@ export async function searchInfo({ q, limit = 6, userId = null }) {
 
   let answer = null
   if (aiConfig.enabled) {
-    answer = await askModel([
-      { role: 'system', content: SYSTEM_SEARCH },
-      {
-        role: 'user',
-        content: buildContext({ question: keyword, recipes: enriched, restaurants, profile: null }),
-      },
-    ])
+    answer = await askModel(
+      [
+        { role: 'system', content: SYSTEM_SEARCH },
+        { role: 'system', content: buildContext({ recipes: enriched, restaurants, profile: null }) },
+        { role: 'user', content: keyword },
+      ],
+      { maxTokens: 200 },
+    )
   }
 
   return {
