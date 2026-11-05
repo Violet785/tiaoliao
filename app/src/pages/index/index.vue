@@ -7,13 +7,17 @@
     <view v-else-if="!shops.length" class="empty">暂无店铺，可通过右上角「反馈登记」提交店名。</view>
     <view v-else class="grid"><RestaurantCard v-for="shop in shops" :key="shop.id" :restaurant="shop" @select="goShop" /></view>
     <button v-if="hasMore" class="ghost load-more" :disabled="loadingMore" @click="load(false)">加载更多</button>
-  </view></view>
+    <button class="ai-entry" @click="goAi">✨ 问问 AI 该配什么</button>
+  </view>
+  <AiChat />
+  </view>
 </template>
 <script setup>
 import { ref } from 'vue'
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app'
 import SiteHeader from '../../components/SiteHeader.vue'
 import RestaurantCard from '../../components/RestaurantCard.vue'
+import AiChat from '../../ai/chat-widget.vue'
 import * as api from '../../api/restaurant.js'
 const shops = ref([]), total = ref(0), keyword = ref(''), loading = ref(true), failed = ref(false), page = ref(1), hasMore = ref(false), loadingMore = ref(false)
 async function load(reset = true) {
@@ -23,6 +27,7 @@ async function load(reset = true) {
 }
 function search() { uni.navigateTo({ url: `/pages/restaurant/list?keyword=${encodeURIComponent(keyword.value)}` }) }
 function goShop(shop) { uni.navigateTo({ url: `/pages/restaurant/detail?id=${shop.id}` }) }
+function goAi() { uni.navigateTo({ url: '/pages/ai/index' }) }
 onLoad(() => load()); onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
 <style scoped>
@@ -31,5 +36,7 @@ onLoad(() => load()); onPullDownRefresh(async () => { await load(); uni.stopPull
 .search-row { margin-top: 28px; max-width: 650px; }
 .search-input { background: #fff; }
 .load-more { margin: 26px auto; }
+.ai-entry { margin: 34px auto 0; padding: 0 22px; line-height: 46px; font-size: 14px; color: #382c24; background: #f6ead4; border: 1px solid #e6d3b3; border-radius: 999px; }
+.ai-entry::after { border: none; }
 @media(max-width:760px) { .home-hero { padding: 14px 0 26px; } .home-hero .page-title { font-size: 32px; max-width: 330px; line-height: 1.4; } .search-row { gap: 8px; } .search-row .btn { padding: 0 14px; } .search-input { font-size: 13px; } }
 </style>

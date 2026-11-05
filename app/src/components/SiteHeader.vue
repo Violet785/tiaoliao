@@ -10,6 +10,7 @@
           <view class="menu-meta">{{ store.isAdmin ? '管理员' : store.isLoggedIn ? '普通用户' : '欢迎来蘸料' }}</view>
           <button @click="go('/pages/user/index')">个人用户</button>
           <button @click="go('/pages/feedback/index')">反馈登记</button>
+          <button @click="go('/pages/ai/index', false)">AI 找蘸料</button>
           <button v-if="store.isAdmin" @click="go('/pages/admin/review')">审核管理</button>
           <button v-if="store.isLoggedIn" class="logout" @click="logout">退出登录</button>
           <button v-else @click="go('/pages/common/login', false)">登录 / 注册</button>

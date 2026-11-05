@@ -10,6 +10,7 @@ import userRoutes from './users.js'
 import condimentRoutes from './condiments.js'
 import tagRoutes from './tags.js'
 import submissionRoutes from './submissions.js'
+import aiRoutes from '../ai/index.js'
 import { ok } from '../utils/response.js'
 import { getDb } from '../db/index.js'
 
@@ -34,5 +35,8 @@ router.use('/recipes', recipeRoutes)
 router.use('/condiments', condimentRoutes)
 router.use('/tags', tagRoutes)
 router.use('/submissions', submissionRoutes)
+
+// AI 推荐 / 搜索 / 对话。整个模块在 src/ai/ 里，删掉这行就等于关掉功能。
+router.use('/ai', aiRoutes)
 
 export default router
