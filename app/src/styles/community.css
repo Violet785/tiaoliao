@@ -5,6 +5,18 @@ page { font-size: 15px; }
 .muted { color: #87796b; font-size: 14px; }
 .panel { padding: 26px; border: 1px solid #e9e2d8; border-radius: 18px; background: #fff; margin: 22px 0; }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+
+/* 宽屏：左侧让出 84px 的竖栏，内容区放宽、多排一列 —— 一屏能多看到一家店 */
+@media (min-width: 900px) {
+  .shell {
+    max-width: 1260px;
+    margin-left: 84px;
+    margin-right: auto;
+    padding-left: 36px;
+    padding-right: 36px;
+  }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(262px, 1fr)); }
+}
 .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .between { justify-content: space-between; }
 .search-input, .field, .textarea, .picker { box-sizing: border-box; background: #faf8f4; border: 1px solid #e4dbcf; border-radius: 10px; padding: 12px 14px; font-size: 15px; min-height: 46px; }
