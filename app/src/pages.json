@@ -34,6 +34,14 @@
     { "path": "pages/admin/review", "style": { "navigationBarTitleText": "审核管理" } },
     { "path": "pages/recipe/detail", "style": { "navigationBarTitleText": "蘸料详情" } },
     {
+      "path": "pages/recipe/cook",
+      "style": {
+        "navigationBarTitleText": "照着配",
+        "navigationStyle": "custom",
+        "disableScroll": true
+      }
+    },
+    {
       "path": "pages/common/login",
       "style": {
         "navigationBarTitleText": "登录",

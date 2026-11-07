@@ -2,8 +2,24 @@ import { getDb } from '../db/index.js'
 import { brandName, brandKey } from '../utils/brand.js'
 import { badRequest, notFound, conflict } from '../utils/errors.js'
 
+// 店铺封面：取这家店最热的一条、带图的已发布配方，拿它的第一张图。
+// 用关联子查询而不是再发一轮请求 —— 列表页最多 12 行，代价可以忽略。
 const columns = `id, name, category, note, recipe_count AS recipeCount,
-  cook_count AS cookCount, created_at AS createdAt`
+  cook_count AS cookCount, created_at AS createdAt,
+  (SELECT i.upload_id FROM recipe_images i
+     JOIN recipes r ON r.id = i.recipe_id
+    WHERE r.restaurant_id = restaurants.id AND r.status = 'published'
+    ORDER BY r.hot_score DESC, i.sort_order
+    LIMIT 1) AS coverId`
+
+/** 把 coverId 变成前端能直接用的 { id, url }；没有图就是 null */
+function withCover(rows) {
+  const map = (row) => {
+    const { coverId, ...rest } = row
+    return { ...rest, cover: coverId ? { id: coverId, url: `/api/uploads/${coverId}` } : null }
+  }
+  return Array.isArray(rows) ? rows.map(map) : map(rows)
+}
 
 export function list({ keyword = '', sort = 'hot', page = 1, pageSize = 20, offset = 0 } = {}) {
   const db = getDb()
@@ -11,7 +27,7 @@ export function list({ keyword = '', sort = 'hot', page = 1, pageSize = 20, offs
   const key = `%${brandKey(keyword)}%`
   const total = db.prepare(`SELECT COUNT(*) AS n FROM restaurants WHERE ${where}`).get(key).n
   const order = sort === 'new' ? 'id DESC' : 'recipe_count DESC, cook_count DESC, id DESC'
-  return { list: db.prepare(`SELECT ${columns} FROM restaurants WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`).all(key, pageSize, offset), total, page, pageSize }
+  return { list: withCover(db.prepare(`SELECT ${columns} FROM restaurants WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`).all(key, pageSize, offset)), total, page, pageSize }
 }
 export function findById(id) {
   const db = getDb()
@@ -24,7 +40,7 @@ export function findById(id) {
   }
   const row = db.prepare(`SELECT ${columns} FROM restaurants WHERE id = ? AND status = 'published'`).get(id)
   if (!row) throw notFound('店铺不存在')
-  return row
+  return withCover(row)
 }
 export function findSimilar({ name }) {
   const candidates = list({ keyword: name, pageSize: 5 }).list
