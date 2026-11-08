@@ -10,11 +10,11 @@ import { aiConfig } from './config.js'
  * @param {{role: 'system'|'user'|'assistant', content: string}[]} messages
  * @returns {Promise<string|null>} 模型回复；未配置或失败时为 null
  */
-export async function chat(messages, { temperature = 0.6, maxTokens = 700 } = {}) {
+export async function chat(messages, { temperature = 0.6, maxTokens = 700, timeoutMs = aiConfig.timeout, responseFormat } = {}) {
   if (!aiConfig.enabled) return null
 
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), aiConfig.timeout)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const res = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
@@ -28,6 +28,7 @@ export async function chat(messages, { temperature = 0.6, maxTokens = 700 } = {}
         messages,
         temperature,
         max_tokens: maxTokens,
+        ...(responseFormat ? { response_format: responseFormat } : {}),
       }),
       signal: controller.signal,
     })

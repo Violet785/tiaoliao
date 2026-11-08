@@ -40,7 +40,10 @@ export function create(input, { silent = true, ...opts } = {}) {
 export function detail(id) {
   return http.get(`/api/restaurants/${id}`)
 }
+export function recommendations(id, filters = {}) {
+  return http.get(`/api/restaurants/${id}/recommendations`, { ...filters, limit: 6 })
+}
 
-export function recipes(id, { sort = 'hot', tasteTag = '', foodTag = '', page = 1, pageSize = PAGE_SIZE } = {}) {
-  return http.get(`/api/restaurants/${id}/recipes`, { sort, tasteTag, foodTag, page, pageSize })
+export function recipes(id, { sort = 'hot', keyword = '', tasteTag = '', foodTag = '', spice = '', exclude = '', page = 1, pageSize = PAGE_SIZE } = {}) {
+  return http.get(`/api/restaurants/${id}/recipes`, { sort, keyword, tasteTag, foodTag, spice, exclude, page, pageSize })
 }

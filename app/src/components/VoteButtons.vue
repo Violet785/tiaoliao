@@ -9,12 +9,13 @@ import { ref, watch } from 'vue'
 import { http } from '../api/request.js'
 import { requireLogin } from '../store/user.js'
 const props = defineProps({ recipe: { type: Object, required: true } })
+const emit = defineEmits(['change'])
 const state = ref({}), busy = ref(false)
 watch(() => props.recipe, r => { state.value = { likeCount: r.likeCount, dislikeCount: r.dislikeCount, myVote: r.myVote } }, { immediate: true, deep: true })
 async function cast(value) {
   if (busy.value || !requireLogin(`/pages/recipe/detail?id=${props.recipe.id}`)) return
   busy.value = true
-  try { state.value = await http.put(`/api/recipes/${props.recipe.id}/vote`, { value: state.value.myVote === value ? 0 : value }) } catch {} finally { busy.value = false }
+  try { state.value = await http.put(`/api/recipes/${props.recipe.id}/vote`, { value: state.value.myVote === value ? 0 : value }); emit('change', { recipeId: props.recipe.id, ...state.value }) } catch {} finally { busy.value = false }
 }
 </script>
 <style scoped>

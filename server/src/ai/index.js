@@ -14,6 +14,8 @@ import { aiConfig } from './config.js'
 import { recommendRecipes } from './recommend.js'
 import { chatReply } from './chat.js'
 import { searchInfo } from './search.js'
+import { pathId } from '../middleware/validate.js'
+import { readRecipeFilters } from '../utils/recipeFilters.js'
 
 const router = Router()
 
@@ -35,11 +37,13 @@ router.get('/status', (_req, res) =>
 
 router.get('/recommend', optionalAuth, (req, res) => {
   const limit = takeLimit(req.query.limit)
-  const result = recommendRecipes({ userId: req.user?.id ?? null, limit })
+  const result = recommendRecipes({ userId: req.user?.id ?? null, limit, restaurantId: req.query.restaurantId ? pathId(req.query.restaurantId) : null })
+  res.set('Cache-Control', 'private, no-store')
   return ok(res, {
     mode: aiConfig.enabled ? 'ai' : 'rule',
     personalized: result.personalized,
     profile: result.profile,
+    feedback: result.feedback,
     list: result.list,
   })
 })
@@ -55,13 +59,17 @@ router.get('/search', optionalAuth, async (req, res) => {
 router.post('/chat', optionalAuth, async (req, res) => {
   const message = String(req.body?.message ?? '').trim()
   if (!message) throw badRequest('消息不能为空')
+  if (message.length > 300) throw badRequest('消息不能超过 300 个字符')
 
   const history = Array.isArray(req.body?.history) ? req.body.history.slice(-10) : []
   const result = await chatReply({
     message,
     history,
     userId: req.user?.id ?? null,
+    restaurantId: req.body?.restaurantId == null ? null : pathId(req.body.restaurantId),
+    preferences: readRecipeFilters(req.body?.preferences || {}),
   })
+  res.set('Cache-Control', 'private, no-store')
   return ok(res, result)
 })
 

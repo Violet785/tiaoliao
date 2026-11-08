@@ -7,6 +7,7 @@ import { str, arr, int, bool, pagination, pathId } from '../middleware/validate.
 import { badRequest } from '../utils/errors.js'
 import { submit } from '../services/submissionService.js'
 import { vote } from '../services/voteService.js'
+import { readRecipeFilters } from '../utils/recipeFilters.js'
 
 const router = Router()
 
@@ -48,10 +49,9 @@ function readTags(body) {
 router.get('/', optionalAuth, (req, res) => {
   const { page, pageSize, offset } = pagination(req.query)
   const result = recipeService.list({
-    keyword: req.query.keyword ?? '',
+    ...readRecipeFilters(req.query),
+    restaurantId: req.query.restaurantId ? pathId(req.query.restaurantId) : null,
     sort: req.query.sort ?? 'hot',
-    tasteTag: req.query.tasteTag ?? '',
-    foodTag: req.query.foodTag ?? '',
     page, pageSize, offset,
     currentUserId: req.user?.id,
   })
@@ -69,6 +69,7 @@ router.post('/', requireAuth, (req, res) => {
       ...readTags(req.body),
       clientToken: str(req.body, 'clientToken', { required: false, max: 64 }) || null,
       imageIds: arr(req.body, 'imageIds', { max: 4 }),
+      resubmittedFrom: int(req.body, 'resubmittedFrom', { required: false, min: 1 }),
     },
     req.user.id,
   )
@@ -101,6 +102,7 @@ router.patch('/:id', requireAuth, (req, res) => {
       items: readItems(req.body),
       ...readTags(req.body),
       imageIds: arr(req.body, 'imageIds', { max: 4 }),
+      resubmittedFrom: int(req.body, 'resubmittedFrom', { required: false, min: 1 }),
       clientToken: str(req.body, 'clientToken', { required: false, max: 64 }) || null,
     },
     req.user.id,
@@ -131,6 +133,7 @@ router.put('/:id/rating', requireAuth, (req, res) =>
   ok(res, ratingService.upsert(pathId(req.params.id), req.user.id, {
     score: int(req.body, 'score', { min: 1, max: 5, label: '评分' }),
     content: str(req.body, 'content', { required: false, max: 500, label: '评价' }),
+    feedbackTags: arr(req.body, 'feedbackTags', { max: 5 }),
     tasteOk: req.body?.tasteOk === undefined || req.body?.tasteOk === null
       ? null
       : bool(req.body, 'tasteOk'),

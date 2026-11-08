@@ -10,6 +10,7 @@ export const aiConfig = {
   apiKey: process.env.AI_API_KEY || '',
   model: process.env.AI_MODEL || 'deepseek-chat',
   timeout: Number(process.env.AI_TIMEOUT || 20000),
+  intentTimeout: Math.min(10000, Math.max(500, Number(process.env.AI_INTENT_TIMEOUT_MS) || 6500)),
 
   get enabled() {
     return Boolean(this.apiKey)

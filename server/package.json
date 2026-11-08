@@ -15,7 +15,12 @@
     "seed:demo": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/seed/demo.js",
     "reset": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/reset.js",
     "db:info": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/db-info.js",
-    "smoke": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/community-smoke.js"
+    "smoke": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/scripts/community-smoke.js",
+    "test:references": "node --disable-warning=ExperimentalWarning src/scripts/reference-recipes-test.js",
+    "test:recommendations": "node --disable-warning=ExperimentalWarning src/scripts/recommendations-test.js",
+    "test:fill": "node --disable-warning=ExperimentalWarning src/scripts/fill-recipes-test.js",
+    "test:chat": "node --disable-warning=ExperimentalWarning src/scripts/chat-test.js",
+    "test:intent": "node --disable-warning=ExperimentalWarning src/scripts/intent-test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

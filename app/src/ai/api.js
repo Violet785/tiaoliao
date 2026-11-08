@@ -20,8 +20,8 @@ export function search(q) {
 }
 
 /** 小窗口对话。history 传最近几条 {role, content} 即可 */
-export function chat(message, history = []) {
-  return http.post('/api/ai/chat', { message, history }, { silent: true })
+export function chat(message, history = [], { restaurantId = null, preferences = {} } = {}) {
+  return http.post('/api/ai/chat', { message, history, restaurantId, preferences }, { silent: true })
 }
 
 export default { status, recommend, search, chat }

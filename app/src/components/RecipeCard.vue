@@ -2,18 +2,21 @@
   <view class="recipe-card">
     <view class="recipe-link" role="button" tabindex="0" @click="$emit('select', recipe)" @keydown.enter="$emit('select', recipe)">
       <image v-if="recipe.images?.length" class="cover" :src="mediaUrl(recipe.images[0].url)" mode="aspectFill" />
+      <image v-else-if="recipe.coverIllustration" class="cover" :src="recipe.coverIllustration" mode="aspectFill" />
       <view v-else class="cover placeholder"><text>蘸</text><text class="placeholder-note">好味道，慢慢配</text></view>
       <view class="content"><view class="recipe-title">{{ recipe.title }}</view><view class="description">{{ recipe.description || recipe.amountSummary }}</view><view class="ingredients">{{ recipe.amountSummary }}</view><view class="muted">{{ recipe.author?.nickname }}<text v-if="showRestaurant"> · {{ recipe.restaurant?.name }}</text></view></view>
     </view>
-    <view class="vote-row"><text class="muted">尝过后留个评价</text><VoteButtons :recipe="recipe" /></view>
+    <view v-if="recipe.recommendationReason" class="recommendation-reason">{{ recipe.recommendationReason }}</view>
+    <view class="vote-row"><text class="muted">尝过后留个评价</text><VoteButtons :recipe="recipe" @change="$emit('voted', $event)" /></view>
   </view>
 </template>
 <script setup>
 import VoteButtons from './VoteButtons.vue'
 import { mediaUrl } from '../api/community.js'
-defineProps({ recipe: { type: Object, required: true }, showRestaurant: { type: Boolean, default: true } }); defineEmits(['select'])
+defineProps({ recipe: { type: Object, required: true }, showRestaurant: { type: Boolean, default: true } }); defineEmits(['select', 'voted'])
 </script>
 <style scoped>
+.recommendation-reason { margin: 0 18px 14px; padding: 10px 12px; background: #f5ead9; border-radius: 10px; color: #8d5e34; font-size: 12px; line-height: 1.7; }
 .recipe-card { background: #fff; border: 1px solid #e7ded3; border-radius: 18px; overflow: hidden; }
 .recipe-link { cursor: pointer; }
 .cover { display: block; width: 100%; height: 180px; background: #ecdfc9; }

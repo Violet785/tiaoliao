@@ -18,6 +18,13 @@ export function submit(kind, body, userId, recipeId = null) {
       return receipt(prior.id)
     }
   }
+  const resubmittedFrom = int(body, 'resubmittedFrom', { required: false, min: 1 }) || null
+  if (resubmittedFrom) {
+    const previous = db.prepare('SELECT user_id, kind, status, payload FROM submissions WHERE id = ?').get(resubmittedFrom)
+    if (!previous || previous.user_id !== userId) throw notFound('原登记不存在')
+    if (previous.status !== 'rejected' || previous.kind !== kind
+      || (JSON.parse(previous.payload).recipeId || null) !== recipeId) throw badRequest('只能修改自己被驳回的同类登记')
+  }
   let payload
   if (kind === 'restaurant') {
     const name = brandName(str(body, 'name', { max: 60, label: '店名' }))
@@ -54,17 +61,18 @@ export function submit(kind, body, userId, recipeId = null) {
       ...Object.fromEntries(['tasteTags', 'foodTags', 'sceneTags'].map(key => [key, arr(body, key, { max: 10 }).filter(v => typeof v === 'string')])),
     }
   }
-  const info = db.prepare('INSERT INTO submissions (user_id, kind, payload, client_token) VALUES (?, ?, ?, ?)')
-    .run(userId, kind, JSON.stringify(payload), clientToken)
+  const info = db.prepare('INSERT INTO submissions (user_id, kind, payload, client_token, resubmitted_from) VALUES (?, ?, ?, ?, ?)')
+    .run(userId, kind, JSON.stringify(payload), clientToken, resubmittedFrom)
   return receipt(Number(info.lastInsertRowid))
 }
 function receipt(id) {
   const row = getDb().prepare('SELECT id, kind, status, published_id AS publishedId FROM submissions WHERE id = ?').get(id)
   return { submission: row, message: '已提交，请等待管理员审核' }
 }
-export function list({ userId = null, status = '', kind = '', page = 1, pageSize = 20, offset = 0 } = {}) {
+export function list({ userId = null, id = null, status = '', kind = '', page = 1, pageSize = 20, offset = 0 } = {}) {
   const db = getDb(), where = [], args = []
   if (userId) { where.push('s.user_id = ?'); args.push(userId) }
+  if (id) { where.push('s.id = ?'); args.push(id) }
   if (status) { if (!['pending','approved','rejected'].includes(status)) throw badRequest('审核状态不合法'); where.push('s.status = ?'); args.push(status) }
   if (kind) { if (!['restaurant','recipe','feedback'].includes(kind)) throw badRequest('反馈类型不合法'); where.push('s.kind = ?'); args.push(kind) }
   const filter = where.length ? `WHERE ${where.join(' AND ')}` : ''
@@ -79,8 +87,13 @@ export function list({ userId = null, status = '', kind = '', page = 1, pageSize
       payload.images = previewImages(payload.imageIds)
     }
     return { id: row.id, kind: row.kind, status: row.status, payload, author: { nickname: row.nickname, username: row.username },
-      reviewNote: row.review_note, reviewer: row.reviewer, reviewedAt: row.reviewed_at, createdAt: row.created_at, publishedId: row.published_id }
+      resubmittedFrom: row.resubmitted_from, reviewNote: row.review_note, reviewer: row.reviewer, reviewedAt: row.reviewed_at, createdAt: row.created_at, publishedId: row.published_id }
   }), total, page, pageSize }
+}
+export function own(id, userId) {
+  const record = list({ id, userId }).list[0]
+  if (!record) throw notFound('登记不存在')
+  return record
 }
 export function review(id, action, note, adminId) {
   if (!['approve','reject'].includes(action)) throw badRequest('审核操作不合法')
@@ -103,6 +116,9 @@ export function review(id, action, note, adminId) {
     db.prepare(`UPDATE submissions SET status = ?, review_note = ?, reviewed_by = ?,
       reviewed_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'), published_id = ? WHERE id = ?`)
       .run(action === 'approve' ? 'approved' : 'rejected', note, adminId, publishedId, id)
+    db.prepare('INSERT INTO notifications (user_id, submission_id, title, content) VALUES (?, ?, ?, ?)')
+      .run(row.user_id, id, action === 'approve' ? '投稿已通过审核' : '投稿需修改',
+        `${payload.title || payload.name || '意见反馈'}：${note || '审核已通过，可以查看处理结果。'}`)
     return receipt(id)
   })
 }

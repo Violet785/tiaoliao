@@ -1,140 +1,57 @@
-// 对话逻辑：规则先选，模型后说；模型不可用时走规则话术。
-//
-// 关键取舍：选哪一条由规则决定，模型只负责把它讲成一句话。
-// 小模型（0.5B–1.5B）判断力弱但语言还过得去，这样分工既稳又快。
-import { chat as askModel } from './provider.js'
-import { aiConfig } from './config.js'
-import { recommendRecipes, summarizeForPrompt } from './recommend.js'
-import { SYSTEM_VERBALIZE } from './prompt.js'
-import * as data from './data.js'
+import { getDb } from '../db/index.js'
+import { recommend } from '../services/recommendationService.js'
+import { detail } from '../services/recipeService.js'
+import { resolveStore } from './storeContext.js'
+import { preferenceCommand } from './chatCommands.js'
+import { understandTaste } from './intent.js'
 
-const MAX_HISTORY = 6
-const MAX_INPUT = 300
-
-/** 按问题里的口味词挑候选（规则选，模型不参与）。 */
-function pickByIntent(question, list) {
-  const q = question.toLowerCase()
-  const has = (...words) => words.some((w) => q.includes(w))
-
-  if (has('清淡', '不辣', '微辣', '怕辣')) return [...list].sort((a, b) => a.heat - b.heat)
-  if (has('辣', '重口', '过瘾', '重味')) return [...list].sort((a, b) => b.heat - a.heat)
-  if (has('咸', '酱')) return [...list].sort((a, b) => b.salt - a.salt)
-  return list
-}
-
-/** 规则模式下的兜底回答。按关键词挑候选，保证「没配模型也能用」。 */
-function ruleReply(question, { list, profile }) {
-  const q = question.toLowerCase()
-  const has = (...words) => words.some((w) => q.includes(w))
-
-  if (has('你好', 'hi', 'hello', '在吗', '你是谁')) {
-    return '我是蘸料的推荐助手。可以问我「推荐一份清淡的」「哪家店的麻酱好吃」「牛很鲜有什么配方」。'
+function preferenceSummary(filters) {
+  const labels = [], db = getDb()
+  const spicy = { none: '不辣', mild: '微辣', medium: '中辣', hot: '重辣', spicy: '有辣味' }
+  if (spicy[filters.spice]) labels.push(spicy[filters.spice])
+  for (const id of [filters.tasteTag, filters.foodTag].filter(Boolean)) { const row = db.prepare(`SELECT name FROM tags WHERE id = ? AND status = 'published'`).get(id); if (row) labels.push(row.name) }
+  const ids = (filters.exclude || '').split(',').filter(Boolean)
+  if (ids.length) {
+    const names = db.prepare(`SELECT DISTINCT short_name AS name FROM condiments WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids).map(r => r.name).filter(Boolean)
+    if (names.length) labels.push('不放' + names.join('、'))
   }
+  return labels
+}
 
-  if (!list.length) {
-    return '现在库里还没有已发布的配方，等大家上传并审核通过后我就能推荐了。'
+// 店铺和配方都由数据库确定。回复与名片来自同一份结果，避免自由生成文本串店。
+export async function chatReply({ message, userId = null, restaurantId = null, preferences = {} }) {
+  const question = String(message || '').trim().slice(0, 300)
+  const scope = resolveStore(question, restaurantId), understanding = await understandTaste(question, preferences)
+  const filters = understanding.preferences, labels = preferenceSummary(filters), source = understanding.source === 'model' ? 'ai' : 'rule'
+  const preferencesReset = understanding.conditions.includes('清空口味') || question.split(/[，,。；;！？?!]|但是|不过|但|现在|这次/).some(clause => preferenceCommand(clause).reset)
+  const base = { source, mode: source, understanding: { source: understanding.source, model: understanding.model, conditions: understanding.conditions, fallbackReason: understanding.reason }, preferencesReset, preferences: filters, preferenceSummary: labels, cards: [], restaurant: scope.restaurant, restaurantOptions: scope.options, needsRestaurant: !scope.restaurant }
+  if (!scope.restaurant) {
+    const reply = scope.reason === 'ambiguous' ? '你提到了多家店，这次想在哪家配蘸料？选定一家后，我只推荐这家店的配方。'
+      : scope.reason === 'partial' ? '店名还没确认完整，你指的是下面哪一家？'
+      : scope.reason === 'unknown' ? `还没确认「${scope.hint}」对应哪家店。请填写完整店名，或从下面选择。`
+      : '这次在哪家店配蘸料？先告诉我店名，或点下面的店铺，再按你的口味推荐。'
+    return { ...base, reply }
   }
-
-  const picked = pickByIntent(question, list).slice(0, 3)
-
-  const top = picked[0]
-  const rest = picked.slice(1, 3).map((r) => `《${r.title}》@${r.shop}`).join('、')
-  const taste = profile ? `你的口味大致是辣 ${Math.round(profile.heat)}、咸 ${Math.round(profile.salt)}。` : ''
-
-  return `${taste}先试《${top.title}》@${top.shop}：辣 ${top.heat}、咸 ${top.salt}、醇 ${top.rich}，${top.rating ? '均分 ' + top.rating + '，' : ''}被照着配了 ${top.cookCount} 次。${rest ? '另外还可以看 ' + rest + '。' : ''}`
-}
-
-/** 从候选里检索跟问题最相关的几条（关键词命中标题/店铺/标签的优先）。 */
-function focusCandidates(question, list) {
-  const q = question.toLowerCase()
-  const hit = list.filter((r) =>
-    [r.title, r.shop, ...(r.tags || [])].some((v) => v && q.includes(String(v).toLowerCase())),
-  )
-  return hit.length ? hit : list
-}
-
-/** 清理模型输出：去掉标签、多余换行；明显在念字段名的直接判为无效。 */
-function cleanReply(text) {
-  if (!text) return null
-
-  const flat = String(text).replace(/\s+/g, ' ').trim()
-  if (!flat) return null
-
-  // 「配方名：」「辣度：」这类标签出现，说明它在复述输入，不是回答
-  if (/(配方名|店名|辣度|咸度|醇厚)\s*[:：]/.test(flat)) return null
-  // 标签省略冒号、但把数值抄了一遍的情况也要拦（0.5B 很爱这么写）
-  if (/(辣度|咸度|醇厚)\s*\d/.test(flat)) return null
-  if (/^[-*\d]\.\s/.test(flat)) return null
-  if (flat.length > 80) return null
-
-  return flat
-}
-
-/** 打招呼之类的非检索问题，直接走规则，别浪费一次推理。 */
-function isSmallTalk(question) {
-  return /^(你好|您好|hi|hello|哈喽|在吗|你是谁|你能做什么)[!！。.？?\s]*$/i.test(question)
-}
-
-/**
- * @param {{message: string, history?: Array, userId?: number|null}} input
- * @returns {Promise<{reply: string, source: 'ai'|'rule', mode: string}>}
- */
-export async function chatReply({ message, history = [], userId = null }) {
-  const question = String(message || '').trim().slice(0, MAX_INPUT)
-  if (!question) {
-    return { reply: '想找什么？可以问我「哪家店的蘸料清淡一点」或者「推荐一份麻酱的」。', source: 'rule', mode: aiConfig.enabled ? 'ai' : 'rule' }
+  const shop = scope.restaurant
+  if (/^(谢谢|谢谢你|好的|好|嗯)[!！。.？?\s]*$/.test(question)) return { ...base, reply: `好的，当前仍是${shop.name}。想换口味或换店时直接告诉我。` }
+  if (/^(你好|您好|hi|hello|哈喽|在吗|你是谁|你能做什么)[!！。.？?\s]*$/i.test(question)) return { ...base, reply: `当前是${shop.name}。告诉我想吃什么口味、搭配什么食材，或者哪些调料不想放。` }
+  const result = recommend({ restaurantId: shop.id, userId, limit: 3, filters: { ...filters, exclude: filters.exclude ? filters.exclude.split(',') : [] } })
+  const cards = result.list.map(recipe => {
+    const full = detail(recipe.id, userId)
+    return { ...recipe, ingredients: full.items.map(it => ({ condimentId: it.condimentId, name: it.condimentName, amountLevel: it.amountLevel, amount: it.amountLabel, note: it.amountNote })),
+      tags: [...full.tags.taste, ...full.tags.food].map(t => t.name) }
+  })
+  if (!cards.length) {
+    const reason = !shop.recipeCount ? '还没有已发布配方，可以先通过反馈登记补充。'
+      : result.emptyReason === 'all_disliked' ? '符合要求的配方都被你标记为不喜欢了，可以到店铺里调整喜好，或换个口味条件。'
+      : `暂时没有符合${labels.length ? '“' + labels.join('、') + '”' : '当前条件'}的配方。可以减少筛选条件，我仍会只在这家店里找。`
+    return { ...base, reply: `${shop.name}${reason}`, personalized: result.personalized, feedback: result.feedback }
   }
-
-  // 候选池给大一点：对话里经常要按店名找，池子太小会漏
-  const rec = recommendRecipes({ userId, limit: 20 })
-  const candidates = focusCandidates(question, rec.list)
-  const restaurants = data.searchRestaurants(question, 3)
-
-  // 寒暄不查库、不推理：小模型答这类问题容易硬推一份配方，很怪
-  if (isSmallTalk(question)) {
-    return {
-      reply: '我是蘸料的推荐助手。可以问我「推荐一份清淡的」「哪家店的麻酱好吃」「牛很鲜有什么配方」。',
-      source: 'rule',
-      mode: aiConfig.enabled ? 'ai' : 'rule',
-    }
-  }
-
-  if (aiConfig.enabled) {
-    // 分工：规则选哪一条，模型只负责把这一条讲成人话。
-    //
-    // 为什么不把整个候选列表丢给模型：0.5B/1.5B 在 CPU 上既慢又会「照抄列表」，
-    // 实测会推荐错店、编造标题。锁定唯一目标后，它只需要组织一句话，稳定性完全不同。
-    const picked = pickByIntent(question, candidates)
-    const target = picked[0]
-
-    if (target) {
-      const messages = [
-        { role: 'system', content: SYSTEM_VERBALIZE },
-        ...history
-          .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-          .slice(-MAX_HISTORY)
-          .map((m) => ({ role: m.role, content: m.content.slice(0, 300) })),
-        {
-          role: 'user',
-          content: `配方名：${target.title}\n店名：${target.shop}\n辣度：${target.heat}，咸度：${target.salt}，醇厚：${target.rich}\n用户说：${question}`,
-        },
-      ]
-
-      // 一句话就够，token 上限压到 90，避免它发散成长篇
-      const text = await askModel(messages, { maxTokens: 90, temperature: 0.5 })
-      const clean = cleanReply(text)
-      // 小模型经常把「配方名：…辣度：…」原样吐回来。这种输出直接丢掉走规则：
-      // 与其念字段名，不如用模板给一句完整的话。
-      if (clean) return { reply: clean, source: 'ai', mode: 'ai' }
-    }
-  }
-
-  // 规则模式用「聚焦后的候选」，这样问「牛很鲜有什么配方」才会先答那家店
-  return { reply: ruleReply(question, { list: candidates, profile: rec.profile }), source: 'rule', mode: 'rule' }
+  return { ...base, cards, personalized: result.personalized, feedback: result.feedback,
+    reply: `${preferencesReset ? '本次口味要求已重置。' : ''}${shop.name}里先看看这${cards.length}款：${cards.map(r => r.title).join('、')}。名片中列了调料和用量，可以直接照着配。` }
 }
 
-/** 供调试：把当前候选压缩成一行，确认检索没跑偏。 */
-export function debugCandidates(userId) {
-  const rec = recommendRecipes({ userId, limit: 5 })
-  return summarizeForPrompt(rec.list)
+export function debugCandidates(userId, restaurantId) {
+  if (!restaurantId) return '尚未选择店铺'
+  return recommend({ userId, restaurantId, limit: 3 }).list.map(r => `${r.restaurant.name}：${r.title}`).join('\n')
 }

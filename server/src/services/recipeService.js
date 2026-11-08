@@ -15,6 +15,7 @@ const RECIPE_COLUMNS = `
   r.heat_score AS heatScore, r.salt_score AS saltScore, r.rich_score AS richScore,
   r.rating_count AS ratingCount, r.rating_sum AS ratingSum, r.rating_avg AS ratingAvg,
   r.favorite_count AS favoriteCount, r.cook_count AS cookCount, r.hot_score AS hotScore,
+  r.content_type AS contentType, r.content_source AS contentSource, r.cover_illustration AS coverIllustration,
   r.status, r.created_at AS createdAt, r.updated_at AS updatedAt
 `
 
@@ -22,7 +23,7 @@ const RECIPE_COLUMNS = `
 
 /** 列表 / 搜索。restaurantId 为空时是全站「发现」流。 */
 export function list({
-  restaurantId = null, keyword = '', sort = 'hot', tasteTag = '', foodTag = '',
+  restaurantId = null, keyword = '', sort = 'hot', tasteTag = '', foodTag = '', spice = '', exclude = [],
   page = 1, pageSize = 20, offset = 0, currentUserId = null,
 } = {}) {
   const db = getDb()
@@ -34,8 +35,19 @@ export function list({
     params.push(restaurantId)
   }
   if (keyword) {
-    where.push('r.title LIKE ?')
-    params.push(`%${keyword}%`)
+    where.push(`(r.title LIKE ? OR r.description LIKE ?
+      OR EXISTS (SELECT 1 FROM restaurants shop WHERE shop.id = r.restaurant_id AND shop.name LIKE ?)
+      OR EXISTS (SELECT 1 FROM recipe_items item WHERE item.recipe_id = r.id AND item.amount_level > 0 AND item.condiment_name LIKE ?))`)
+    params.push(...Array(4).fill(`%${keyword}%`))
+  }
+  if (spice) {
+    where.push({ none: 'r.heat_score = 0', mild: 'r.heat_score > 0 AND r.heat_score < 25',
+      medium: 'r.heat_score >= 25 AND r.heat_score < 60', hot: 'r.heat_score >= 60', spicy: 'r.heat_score > 0' }[spice])
+  }
+  if (exclude.length) {
+    where.push(`NOT EXISTS (SELECT 1 FROM recipe_items item WHERE item.recipe_id = r.id
+      AND item.amount_level > 0 AND item.condiment_id IN (${exclude.map(() => '?').join(',')}))`)
+    params.push(...exclude)
   }
   // 标签用 EXISTS 而不是 JOIN：一个配方可能同时命中多个标签，
   // JOIN 会产生重复行，还得再 DISTINCT，不如 EXISTS 干净。
@@ -98,6 +110,7 @@ function toCard(row, currentUserId) {
 
   return {
     id: row.id,
+    contentType: row.contentType, contentSource: row.contentSource, coverIllustration: row.coverIllustration,
     ...counts(row.id, currentUserId),
     images: imagesFor(row.id),
     title: row.title,
@@ -162,6 +175,7 @@ export function detail(id, currentUserId = null) {
   const result = {
     recipe: {
       id: row.id,
+      contentType: row.contentType, contentSource: row.contentSource, coverIllustration: row.coverIllustration,
       ...counts(row.id, currentUserId),
       images: imagesFor(row.id),
       title: row.title,
@@ -202,10 +216,11 @@ export function detail(id, currentUserId = null) {
   if (currentUserId) {
     result.myRating = db
       .prepare(
-        `SELECT score, content, taste_ok AS tasteOk, updated_at AS updatedAt
+        `SELECT score, content, feedback_tags AS feedbackTags, taste_ok AS tasteOk, updated_at AS updatedAt
          FROM ratings WHERE recipe_id = ? AND user_id = ? AND status = 'published'`,
       )
       .get(id, currentUserId) ?? null
+    if (result.myRating) result.myRating.feedbackTags = safeParse(result.myRating.feedbackTags, [])
 
     result.isFavorite = Boolean(
       db.prepare('SELECT 1 FROM favorites WHERE recipe_id = ? AND user_id = ?').get(id, currentUserId),
@@ -290,6 +305,7 @@ export function cookSession(id) {
 
   return {
     recipeId: full.recipe.id,
+    contentType: full.recipe.contentType,
     title: full.recipe.title,
     description: full.recipe.description,
     servingNote: full.recipe.servingNote,

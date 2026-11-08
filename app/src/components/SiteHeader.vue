@@ -19,7 +19,7 @@
     <view class="rail-foot">
       <button class="rail-item" :class="{ active: current === 'user' }" @click="account">
         <text class="rail-avatar">{{ store.displayName.slice(0, 1) || '我' }}</text>
-        <text class="rail-label">{{ store.isLoggedIn ? '我的' : '登录' }}</text>
+        <text class="rail-label">{{ store.isLoggedIn ? '我的' : '登录' }}<text v-if="notices.unread" class="notice-dot">{{ notices.unread > 99 ? '99+' : notices.unread }}</text></text>
       </button>
       <button v-if="store.isLoggedIn" class="rail-item" @click="logout">
         <text class="rail-glyph quiet">出</text>
@@ -34,13 +34,14 @@
       <button class="brand" @click="home"><text class="brand-mark">蘸</text><text>蘸料</text><text class="brand-caption">一碗好味道</text></button>
       <view class="account">
         <button class="account-button" :aria-expanded="open" aria-label="用户菜单" @click="open = !open">
-          <text class="avatar">{{ store.displayName.slice(0, 1) || '我' }}</text><text class="account-name">{{ store.displayName || '用户' }}</text><text class="chevron">⌄</text>
+          <text class="avatar">{{ store.displayName.slice(0, 1) || '我' }}</text><text class="account-name">{{ store.displayName || '用户' }}</text><text v-if="notices.unread" class="notice-dot">{{ notices.unread }}</text><text class="chevron">⌄</text>
         </button>
         <view v-if="open" class="menu">
           <view class="menu-meta">{{ store.isAdmin ? '管理员' : store.isLoggedIn ? '普通用户' : '欢迎来蘸料' }}</view>
           <button @click="go('/pages/user/index')">个人用户</button>
+          <button @click="go('/pages/user/index?notices=1')">审核消息<text v-if="notices.unread">（{{ notices.unread }}）</text></button>
+          <button @click="go('/pages/recipe/list', false)">找配方</button>
           <button @click="go('/pages/feedback/index')">反馈登记</button>
-          <button @click="go('/pages/ai/index', false)">AI 找蘸料</button>
           <button v-if="store.isAdmin" @click="go('/pages/admin/review')">审核管理</button>
           <button v-if="store.isLoggedIn" class="logout" @click="logout">退出登录</button>
           <button v-else @click="go('/pages/common/login', false)">登录 / 注册</button>
@@ -57,8 +58,10 @@
 //   · 窄屏：原来的顶部栏 + 头像下拉，手机上竖栏太占地方
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUserStore, requireLogin } from '../store/user.js'
+import { useNotificationStore } from '../store/notifications.js'
 
 const store = useUserStore()
+const notices = useNotificationStore()
 const open = ref(false)
 const current = ref('')
 
@@ -77,7 +80,7 @@ onUnmounted(() => {
 function routeToKey(route) {
   if (route.includes('index/index')) return 'home'
   if (route.includes('restaurant/list')) return 'shops'
-  if (route.includes('ai/index')) return 'ai'
+  if (route.includes('recipe/list')) return 'recipes'
   if (route.includes('feedback/index')) return 'feedback'
   if (route.includes('admin/review')) return 'review'
   if (route.includes('user/index')) return 'user'
@@ -88,7 +91,7 @@ const navItems = computed(() => {
   const items = [
     { key: 'home', glyph: '家', label: '主页', run: home },
     { key: 'shops', glyph: '店', label: '找店', run: () => go('/pages/restaurant/list', false) },
-    { key: 'ai', glyph: 'AI', label: 'AI 找蘸料', run: () => go('/pages/ai/index', false) },
+    { key: 'recipes', glyph: '配', label: '找配方', run: () => go('/pages/recipe/list', false) },
     { key: 'feedback', glyph: '报', label: '反馈登记', run: () => go('/pages/feedback/index') },
   ]
   if (store.isAdmin) items.push({ key: 'review', glyph: '审', label: '审核管理', run: () => go('/pages/admin/review') })
@@ -123,6 +126,7 @@ function key(e) {
 </script>
 
 <style scoped>
+.notice-dot { display: inline-block; margin-left: 4px; padding: 1px 5px; line-height: 16px; background: #bf472d; border-radius: 12px; color: white; font-size: 10px; }
 /* ─────────── 桌面竖栏 ─────────── */
 .rail { display: none; }
 

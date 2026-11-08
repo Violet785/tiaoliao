@@ -10,6 +10,7 @@ router.get('/mine', (req, res) => {
   const result = service.list({ ...pagination(req.query), userId: req.user.id })
   return okList(res, result.list, result)
 })
+router.get('/:id', (req, res) => ok(res, service.own(pathId(req.params.id), req.user.id)))
 router.get('/', requireAdmin, (req, res) => {
   const result = service.list({ ...pagination(req.query), status: req.query.status || '', kind: req.query.kind || '' })
   return okList(res, result.list, result)

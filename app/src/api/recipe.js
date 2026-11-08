@@ -22,10 +22,10 @@ export const SORTS = [
 ]
 
 export function list({
-  restaurantId = null, keyword = '', sort = 'hot', tasteTag = '', foodTag = '',
+  restaurantId = null, keyword = '', sort = 'hot', tasteTag = '', foodTag = '', spice = '', exclude = '',
   page = 1, pageSize = PAGE_SIZE,
 } = {}) {
-  return http.get('/api/recipes', { restaurantId, keyword, sort, tasteTag, foodTag, page, pageSize })
+  return http.get('/api/recipes', { restaurantId, keyword, sort, tasteTag, foodTag, spice, exclude, page, pageSize })
 }
 
 export function detail(id, opts = {}) {
@@ -66,8 +66,8 @@ export function logCook(id, { finished = false, stepReached = 0, skipped = [], s
 
 // ── 评分：一人一条，重复提交是改分 ──
 
-export function rate(id, { score, content = '', tasteOk = null }, opts = {}) {
-  return http.put(`/api/recipes/${id}/rating`, { score, content, tasteOk }, opts)
+export function rate(id, { score, content = '', tasteOk = null, feedbackTags = [] }, opts = {}) {
+  return http.put(`/api/recipes/${id}/rating`, { score, content, tasteOk, feedbackTags }, opts)
 }
 
 export function unrate(id, opts = {}) {

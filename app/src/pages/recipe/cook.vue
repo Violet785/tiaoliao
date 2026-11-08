@@ -11,7 +11,8 @@
       <view class="done-mark">✓</view>
       <view class="done-title">配好了</view>
       <view class="done-line">{{ session.summaryLine }}</view>
-      <view class="done-sub">已记一次打卡，这碗的配方会更靠前</view>
+      <view class="done-sub">{{ recordedSuccess ? '已记录这次试配' : user.isLoggedIn ? '这次试配尚未同步，你仍可以评价这碗蘸料。' : '登录后可以保存试配评价，浏览和照着配无需登录。' }}</view>
+      <RecipeRating :recipe-id="id" :existing="myRating" compact @saved="refreshRating" />
       <button class="btn done-btn" @click="backToRecipe">看看这碗蘸料</button>
       <button class="ghost done-btn" @click="restart">再配一遍</button>
     </view>
@@ -65,8 +66,12 @@
 // 场景是用户站在调料台前，一只手拿碗：所以一屏只显示一步、字号大、
 // 进度和「下一步」固定在拇指够得到的位置，整包数据一次拉完（断网也能走）。
 import { ref, computed } from 'vue'
+import RecipeRating from '../../components/RecipeRating.vue'
 import { onLoad, onUnload, onBackPress } from '@dcloudio/uni-app'
-import { cook, logCook } from '../../api/recipe.js'
+import { cook, logCook, detail } from '../../api/recipe.js'
+import { useUserStore } from '../../store/user.js'
+const user = useUserStore(), myRating = ref(null), recordedSuccess = ref(false)
+async function refreshRating() { if (user.isLoggedIn) { try { myRating.value = (await detail(id.value)).myRating } catch {} } }
 
 const session = ref(null)
 const error = ref('')
@@ -127,12 +132,13 @@ function finish() {
   done.value = true
   if (recorded.value) return
   recorded.value = true
+  if (!user.isLoggedIn) return
   // 打卡失败不打扰用户：他已经在收碗了
   logCook(id.value, {
     finished: true,
     stepReached: total.value,
     skipped: skipped.value,
-  }).catch(() => {})
+  }).then(() => { recordedSuccess.value = true }).catch(() => {})
 }
 
 function restart() {
@@ -142,7 +148,7 @@ function restart() {
 }
 
 function exit() {
-  if (!recorded.value && index.value > 0) {
+  if (user.isLoggedIn && !recorded.value && index.value > 0) {
     recorded.value = true
     logCook(id.value, { finished: false, stepReached: index.value + 1, skipped: skipped.value }).catch(() => {})
   }
@@ -155,7 +161,7 @@ function backToRecipe() {
 
 // 安卓物理返回键 / H5 浏览器后退：先记一笔未完成，再放行
 onBackPress(() => {
-  if (!recorded.value && index.value > 0) {
+  if (user.isLoggedIn && !recorded.value && index.value > 0) {
     recorded.value = true
     logCook(id.value, { finished: false, stepReached: index.value + 1, skipped: skipped.value }).catch(() => {})
   }
@@ -165,6 +171,7 @@ onBackPress(() => {
 onLoad((options) => {
   id.value = Number(options?.id) || 0
   load()
+  refreshRating()
   if (typeof uni.setKeepScreenOn === 'function') {
     uni.setKeepScreenOn({ keepScreenOn: true })
   }
@@ -177,12 +184,13 @@ onUnload(() => {
 })
 
 /** H5 上支持左右键翻页，站在电脑前试配方时很顺手 */
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', (e) => {
+function handleKey(e) {
+    if (['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) return
     if (e.key === 'ArrowRight' && !done.value) next()
     if (e.key === 'ArrowLeft') prev()
-  })
 }
+if (typeof window !== 'undefined') window.addEventListener('keydown', handleKey)
+onUnload(() => { if (typeof window !== 'undefined') window.removeEventListener('keydown', handleKey) })
 </script>
 
 <style scoped>

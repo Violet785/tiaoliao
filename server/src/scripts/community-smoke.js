@@ -28,7 +28,7 @@ try {
     INSERT INTO recipes(id,restaurant_id,user_id,title,cook_count) VALUES (1,2,2,'原配方',3);
     INSERT INTO cook_logs(recipe_id,user_id,restaurant_id,finished) VALUES (1,2,2,1);`)
   db.close(); db = null
-  const env = { ...process.env, DB_PATH: dbFile, UPLOAD_DIR: path.join(temp, 'uploads'), NODE_ENV: 'production', HOST: '127.0.0.1' }
+  const env = { ...process.env, DB_PATH: dbFile, UPLOAD_DIR: path.join(temp, 'uploads'), NODE_ENV: 'production', HOST: '127.0.0.1', AI_API_KEY: '' }
   for (const file of ['db/migrate.js','seed/run.js']) {
     const result = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(root, file)], { env, encoding: 'utf8' })
     assert.equal(result.status, 0, result.stderr || result.stdout)
@@ -133,6 +133,64 @@ try {
   await api('POST', `/api/recipes/${recipeId}/favorite`, {}, user)
   await api('POST', `/api/recipes/${recipeId}/cook-log`, { finished: true }, user)
   check((await api('GET', `/api/restaurants/${brandId}`)).restaurant.cookCount, 1, '旧互动兼容')
+  // 完整发现流程：组合筛选不串店、不重复；零用量调料不参与排除。
+  const filteredInput = { kind: 'recipe', restaurantId: brandId, title: '筛选蒜香清爽', description: '清爽测试',
+    items: [{ condimentId: 'aroma_garlic_minced', amountLevel: 2 }, { condimentId: 'oil_sesame', amountLevel: 2 }],
+    tasteTags: ['taste_garlic'], foodTags: ['food_veg'] }
+  const filteredPending = await api('POST', '/api/submissions', filteredInput, user, 202)
+  const filteredId = (await approve(filteredPending.submission.id)).submission.publishedId
+  const zeroPending = await api('POST', '/api/submissions', { ...filteredInput, title: '筛选不放蒜', items: [{ condimentId: 'aroma_garlic_minced', amountLevel: 0 }, { condimentId: 'oil_chili', amountLevel: 1 }] }, user, 202)
+  const zeroId = (await approve(zeroPending.submission.id)).submission.publishedId
+  const query = '?keyword=' + encodeURIComponent('筛选') + '&tasteTag=taste_garlic&foodTag=food_veg'
+  check((await api('GET', `/api/recipes${query}`)).total, 2, '口味和食材组合搜索')
+  check((await api('GET', `/api/recipes${query}&spice=none`)).list.map(r => r.id), [filteredId], '不辣筛选')
+  check((await api('GET', `/api/recipes${query}&spice=mild&exclude=aroma_garlic_minced`)).list.map(r => r.id), [zeroId], '排除蒜保留不放蒜的配方')
+  check((await api('GET', `/api/restaurants/${brandId}/recipes${query}&exclude=aroma_garlic_minced`)).list.map(r => r.id), [zeroId], '店铺内同样支持组合筛选')
+  check((await api('GET', `/api/recipes?restaurantId=1&keyword=${encodeURIComponent('筛选')}`)).total, 0, '品牌筛选隔离')
+  check((await api('GET', `/api/recipes?keyword=${encodeURIComponent('蒜末')}`)).list.some(r => r.id === filteredId), true, '调料名称可搜索')
+  check((await api('GET', `/api/recipes${query}&spice=hot`)).total, 0, '无匹配条件返回空列表')
+  await api('GET', '/api/recipes?spice=invalid', undefined, undefined, 400)
+  await api('GET', '/api/recipes?exclude=' + encodeURIComponent("x');DROP TABLE recipes;--"), undefined, undefined, 400)
+  const rated = await api('PUT', `/api/recipes/${filteredId}/rating`, { score: 3, content: '需要少放一点盐', feedbackTags: ['太咸', '用量不清楚', '太咸'] }, user)
+  check(rated.rating.feedbackTags, ['太咸', '用量不清楚'], '评价标签去重')
+  check((await api('GET', `/api/recipes/${filteredId}`, undefined, user)).myRating.feedbackTags, ['太咸', '用量不清楚'], '详情回显评价')
+  check((await api('GET', `/api/recipes/${filteredId}/ratings`)).list[0].feedbackTags, ['太咸', '用量不清楚'], '公开评价标签')
+  await api('PUT', `/api/recipes/${filteredId}/rating`, { score: 4, feedbackTags: ['随意标签'] }, user, 400)
+  await api('PUT', `/api/recipes/${filteredId}/rating`, { score: 5, content: '修改后喜欢', feedbackTags: [] }, user)
+  check((await api('GET', `/api/recipes/${filteredId}/ratings`)).total, 1, '改分不新增评价')
+  await api('POST', `/api/recipes/${filteredId}/favorite`, {}, user)
+  await api('POST', `/api/recipes/${filteredId}/favorite`, {}, user)
+  check((await api('GET', `/api/recipes/${filteredId}`, undefined, user)).recipe.favoriteCount, 1, '重复收藏只记一次')
+  check((await api('GET', '/api/users/me/favorites', undefined, user)).list.some(r => r.id === filteredId), true, '个人收藏入口闭环')
+  await api('DELETE', `/api/recipes/${filteredId}/favorite`, undefined, user)
+  check((await api('GET', `/api/recipes/${filteredId}`, undefined, user)).isFavorite, false, '取消收藏回显')
+  await api('DELETE', `/api/recipes/${filteredId}/rating`, undefined, user)
+  check((await api('GET', `/api/recipes/${filteredId}/ratings`)).total, 0, '删除评价')
+  await api('POST', '/api/uploads/previews', { imageIds: [image.id] }, registered.token, 400)
+  check((await api('POST', '/api/uploads/previews', { imageIds: [image.id] }, user)).images[0].id, image.id, '草稿图片重新签名')
+  await api('GET', `/api/submissions/${reject.submission.id}`, undefined, registered.token, 404)
+  check((await api('GET', `/api/submissions/${reject.submission.id}`, undefined, user)).reviewNote, '请补充信息', '本人读取驳回原稿')
+  const retry = await api('POST', '/api/submissions', { kind: 'feedback', content: '已补充详细说明', resubmittedFrom: reject.submission.id, clientToken: 'feedback-resubmit' }, user, 202)
+  check((await api('GET', `/api/submissions/${retry.submission.id}`, undefined, user)).resubmittedFrom, reject.submission.id, '重提保留原记录链接')
+  check((await api('GET', `/api/submissions/${reject.submission.id}`, undefined, user)).status, 'rejected', '重提不覆盖旧审核记录')
+  await api('POST', '/api/submissions', { kind: 'feedback', content: '越权重提', resubmittedFrom: reject.submission.id }, registered.token, 404)
+  await api('POST', '/api/submissions', { kind: 'feedback', content: '不能从待审重提', resubmittedFrom: retry.submission.id }, user, 400)
+  await approve(retry.submission.id)
+  await api('GET', '/api/notifications', undefined, undefined, 401)
+  check((await api('GET', '/api/notifications', undefined, registered.token)).unread, 0, '通知仅本人可见')
+  const notices = await api('GET', '/api/notifications?pageSize=50', undefined, user)
+  check(notices.list.some(n => n.submissionId === retry.submission.id), true, '审核结果产生通知')
+  check(db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE submission_id = ?').get(retry.submission.id).n, 1, '同一次审核只有一条通知')
+  await api('POST', '/api/notifications/read', { throughId: notices.list[0].id }, registered.token)
+  check((await api('GET', '/api/notifications', undefined, user)).unread, notices.unread, '他人不能标记我的通知')
+  await api('POST', '/api/notifications/read', { throughId: notices.list[0].id }, user)
+  check((await api('GET', '/api/notifications', undefined, user)).unread, 0, '批量已读持久化')
+  const rejectedEdit = await api('PATCH', `/api/recipes/${filteredId}`, { ...filteredInput, title: '修改被驳回', clientToken: 'rejected-edit' }, user, 202)
+  await api('POST', `/api/submissions/${rejectedEdit.submission.id}/review`, { action: 'reject', note: '补充用量' }, admin)
+  const retryEdit = await api('PATCH', `/api/recipes/${filteredId}`, { ...filteredInput, title: '补齐后的用量', resubmittedFrom: rejectedEdit.submission.id, clientToken: 'retry-edit' }, user, 202)
+  check((await api('GET', `/api/submissions/${retryEdit.submission.id}`, undefined, user)).resubmittedFrom, rejectedEdit.submission.id, '配方修改重提保留关联')
+  await approve(retryEdit.submission.id)
+  check((await api('GET', `/api/recipes/${filteredId}`)).recipe.title, '补齐后的用量', '重提通过更新原配方')
   // 通过后才发现配方已被删除时，审核必须整体回滚，记录继续待审。
   const abandonedEdit = await api('PATCH', `/api/recipes/${recipeId}`, { ...recipe, title: '无法更新的名称', clientToken: 'abandoned-edit' }, user, 202)
   await api('DELETE', `/api/recipes/${recipeId}`, undefined, user)

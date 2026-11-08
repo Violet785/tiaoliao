@@ -15,6 +15,7 @@
       </template>
 
       <template v-else>
+        <view id="notices" class="panel notifications"><view class="row between"><view class="section-title">审核消息<text v-if="notices.unread">（{{ notices.unread }} 条未读）</text></view><button class="ghost" :disabled="noticeBusy || !notices.unread" @click="readNotices">全部标为已读</button></view><view v-if="notices.failed" class="row"><text class="muted">消息加载失败</text><button class="ghost" @click="notices.refresh">重试</button></view><view v-else-if="!notices.records.length" class="muted">审核有结果时，会在这里通知你。</view><view v-for="n in notices.records" :key="n.id" class="notice-item" :class="{ unread: !n.readAt }" @click="openNotice(n)"><view>{{ n.title }}<text v-if="!n.readAt" class="badge">未读</text></view><view class="muted notice-content">{{ n.content }}</view><view class="muted">登记 #{{ n.submissionId }} · {{ date(n.createdAt) }} · 查看结果 ↗</view></view><view v-if="noticeError" class="error-text">{{ noticeError }}</view></view>
         <!-- 资料卡 -->
         <view class="panel profile">
           <view class="row between">
@@ -83,6 +84,7 @@
                 </view>
                 <view class="muted">{{ it.restaurantName }} · {{ date(it.updatedAt) }}</view>
                 <view v-if="it.content" class="comment">{{ it.content }}</view>
+                <view v-if="it.feedbackTags?.length" class="row"><text v-for="tag in it.feedbackTags" :key="tag" class="badge">{{ tag }}</text></view>
               </view>
             </view>
           </view>
@@ -109,14 +111,20 @@
 // 四类数据的接口早就在服务端了（/users/me/recipes|favorites|ratings、/submissions/mine），
 // 这里只做聚合展示，不新增任何后端逻辑。
 import { ref, computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShow, onLoad } from '@dcloudio/uni-app'
 import SiteHeader from '../../components/SiteHeader.vue'
 import SubmissionCard from '../../components/SubmissionCard.vue'
 import { useUserStore, requireLogin } from '../../store/user.js'
 import * as userApi from '../../api/user.js'
 import { mine as mySubmissions } from '../../api/community.js'
+import { useNotificationStore } from '../../store/notifications.js'
+import { readNotifications } from '../../api/community.js'
 
 const store = useUserStore()
+const notices = useNotificationStore(), noticeBusy = ref(false), noticeError = ref('')
+async function readNotices() { noticeBusy.value = true; noticeError.value = ''; try { await notices.readAll() } catch (e) { noticeError.value = e.message } finally { noticeBusy.value = false } }
+async function openNotice(n) { noticeError.value = ''; try { await readNotifications(n.id); await notices.refresh(); uni.navigateTo({ url: `/pages/feedback/index?resultId=${n.submissionId}` }) } catch (e) { noticeError.value = e.message } }
+onLoad(o => { if (o?.notices === '1') setTimeout(() => uni.pageScrollTo({ selector: '#notices', duration: 200 }), 200) })
 
 const tabs = [
   { key: 'recipes', label: '我的配方' },
@@ -144,14 +152,16 @@ const stats = computed(() =>
 )
 
 const apiOf = {
-  recipes: (p) => userApi.myRecipes(p),
-  favorites: (p) => userApi.myFavorites(p),
-  ratings: (p) => userApi.myRatings(p),
+  recipes: (p, size) => userApi.myRecipes(p, size),
+  favorites: (p, size) => userApi.myFavorites(p, size),
+  ratings: (p, size) => userApi.myRatings(p, size),
   submissions: (p) => mySubmissions(p),
 }
 
+let requestId = 0
 async function loadTab(key, reset = true) {
-  if (loading.value) return
+  if (loading.value && !reset) return
+  const request = ++requestId
   loading.value = true
   failed.value = false
   if (reset) {
@@ -160,14 +170,15 @@ async function loadTab(key, reset = true) {
   }
   try {
     const res = await apiOf[key](page.value)
+    if (request !== requestId || tab.value !== key) return
     items.value = reset ? res.list : [...items.value, ...res.list]
     hasMore.value = Boolean(res.hasMore)
     totals.value[key] = res.total
     page.value += 1
   } catch {
-    failed.value = true
+    if (request === requestId) failed.value = true
   } finally {
-    loading.value = false
+    if (request === requestId) loading.value = false
   }
 }
 
@@ -223,11 +234,13 @@ onShow(() => {
   if (!store.isLoggedIn) return
   nickname.value = store.displayName
   loadTotals()
+  notices.refresh()
   loadTab(tab.value, true)
 })
 </script>
 
 <style scoped>
+.notifications .section-title { margin: 0; font-size: 18px; }.notice-item { padding: 14px; margin-top: 12px; border-radius: 10px; border: 1px solid #eee4d7; cursor: pointer; }.notice-item.unread { background: #fbf2e5; border-color: #e8d0b0; }.notice-content { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .user-shell { max-width: 900px; }
 .guest { text-align: center; padding: 40px 24px; }
 .guest-title { font-size: 18px; font-weight: 600; margin-bottom: 10px; }

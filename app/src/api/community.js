@@ -3,6 +3,10 @@ import { BASE_URL } from '../config/index.js'
 export const mediaUrl = url => url && !/^https?:/.test(url) ? BASE_URL + url : url
 export const submit = data => http.post('/api/submissions', data)
 export const mine = (page = 1) => http.get('/api/submissions/mine', { page })
+export const ownSubmission = id => http.get(`/api/submissions/${id}`)
+export const notifications = () => http.get('/api/notifications', { pageSize: 50 }, { silent: true })
+export const readNotifications = throughId => http.post('/api/notifications/read', { throughId })
+export const refreshImages = imageIds => http.post('/api/uploads/previews', { imageIds })
 export const queue = data => http.get('/api/submissions', data)
 export const review = (id, action, note = '') => http.post(`/api/submissions/${id}/review`, { action, note })
 export const kindLabel = { restaurant: '新增店铺', recipe: '上传蘸料', feedback: '其他反馈' }

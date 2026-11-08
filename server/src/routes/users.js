@@ -30,7 +30,7 @@ router.get('/me/recipes', requireAuth, (req, res) => {
   const db = getDb()
 
   const total = db
-    .prepare(`SELECT COUNT(*) AS n FROM recipes WHERE user_id = ? AND status = 'published'`)
+    .prepare(`SELECT COUNT(*) AS n FROM recipes r JOIN restaurants s ON s.id = r.restaurant_id WHERE r.user_id = ? AND r.status = 'published' AND s.status = 'published'`)
     .get(req.user.id).n
 
   const list = db
@@ -39,7 +39,7 @@ router.get('/me/recipes', requireAuth, (req, res) => {
               r.cook_count AS cookCount, r.item_count AS itemCount,
               r.created_at AS createdAt, s.id AS restaurantId, s.name AS restaurantName
        FROM recipes r JOIN restaurants s ON s.id = r.restaurant_id
-       WHERE r.user_id = ? AND r.status = 'published'
+       WHERE r.user_id = ? AND r.status = 'published' AND s.status = 'published'
        ORDER BY r.id DESC LIMIT ? OFFSET ?`,
     )
     .all(req.user.id, pageSize, offset)
@@ -52,7 +52,7 @@ router.get('/me/favorites', requireAuth, (req, res) => {
   const db = getDb()
 
   const total = db
-    .prepare('SELECT COUNT(*) AS n FROM favorites WHERE user_id = ?')
+    .prepare(`SELECT COUNT(*) AS n FROM favorites f JOIN recipes r ON r.id = f.recipe_id JOIN restaurants s ON s.id = r.restaurant_id WHERE f.user_id = ? AND r.status = 'published' AND s.status = 'published'`)
     .get(req.user.id).n
 
   const list = db
@@ -64,7 +64,7 @@ router.get('/me/favorites', requireAuth, (req, res) => {
        FROM favorites f
        JOIN recipes r ON r.id = f.recipe_id
        JOIN restaurants s ON s.id = r.restaurant_id
-       WHERE f.user_id = ? AND r.status = 'published'
+       WHERE f.user_id = ? AND r.status = 'published' AND s.status = 'published'
        ORDER BY f.created_at DESC LIMIT ? OFFSET ?`,
     )
     .all(req.user.id, pageSize, offset)
@@ -77,22 +77,22 @@ router.get('/me/ratings', requireAuth, (req, res) => {
   const db = getDb()
 
   const total = db
-    .prepare(`SELECT COUNT(*) AS n FROM ratings WHERE user_id = ? AND status = 'published'`)
+    .prepare(`SELECT COUNT(*) AS n FROM ratings rt JOIN recipes r ON r.id = rt.recipe_id JOIN restaurants s ON s.id = r.restaurant_id WHERE rt.user_id = ? AND rt.status = 'published' AND r.status = 'published' AND s.status = 'published'`)
     .get(req.user.id).n
 
   const list = db
     .prepare(
-      `SELECT rt.score, rt.content, rt.taste_ok AS tasteOk, rt.updated_at AS updatedAt,
+      `SELECT rt.score, rt.content, rt.feedback_tags AS feedbackTags, rt.taste_ok AS tasteOk, rt.updated_at AS updatedAt,
               r.id AS recipeId, r.title AS recipeTitle, s.name AS restaurantName
        FROM ratings rt
        JOIN recipes r ON r.id = rt.recipe_id
        JOIN restaurants s ON s.id = r.restaurant_id
-       WHERE rt.user_id = ? AND rt.status = 'published'
+       WHERE rt.user_id = ? AND rt.status = 'published' AND r.status = 'published' AND s.status = 'published'
        ORDER BY rt.updated_at DESC LIMIT ? OFFSET ?`,
     )
     .all(req.user.id, pageSize, offset)
 
-  return okList(res, list, { page, pageSize, total })
+  return okList(res, list.map(row => ({ ...row, feedbackTags: JSON.parse(row.feedbackTags) })), { page, pageSize, total })
 })
 
 /** 他人的公开主页。放在最后，避免吃掉上面的 /me 系列。 */

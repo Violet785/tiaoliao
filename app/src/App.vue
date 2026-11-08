@@ -1,10 +1,22 @@
 <script setup>
-import { onLaunch } from '@dcloudio/uni-app'
+import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
+import { watch } from 'vue'
 import { useUserStore } from './store/user.js'
+import { useNotificationStore } from './store/notifications.js'
 import { setUnauthorizedHandler } from './api/request.js'
+let notificationTimer
+function startNotifications() {
+  clearInterval(notificationTimer)
+  const notices = useNotificationStore()
+  notices.refresh()
+  notificationTimer = setInterval(() => notices.refresh(), 30000)
+}
+onShow(startNotifications)
+onHide(() => clearInterval(notificationTimer))
 
 onLaunch(() => {
   const userStore = useUserStore()
+  watch(() => userStore.token, () => useNotificationStore().refresh(), { immediate: true })
 
   // token 失效的统一出口。
   //
